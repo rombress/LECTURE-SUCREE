@@ -48,4 +48,21 @@
   - **Réglages** : transcription en direct (activée par défaut), reconnaissance en ligne (désactivée par défaut).
 - [x] Vérification complète (14 h 21) : version 0.3.0 (build 4) ; `verify` ✅ (96 Jest + 20 Node) ; `expo-doctor` 20/20 ; bundle iOS 3 Mo
 - [x] Documentation : protocole H (16 tests sur iPhone), décisions D31 à D36, message de relecture pour ChatGPT
-- [ ] Relecture indépendante (agent séparé) en cours
+- [x] Relecture indépendante (agent séparé, 14 h 25) : **9 défauts réels**, invisibles aux tests initiaux, tous corrigés (14 h 37, commit `37d29b1`) :
+  1. Moteur natif partagé, événements non étiquetés. Un arrêt pendant un démarrage laissait une **tâche orpheline sur le micro**, et des fins périmées pouvaient créer une **boucle de relances**. Les transcriptions en direct et de fichier pouvaient se mélanger. → Verrou moteur exclusif ; arrêt différé jusqu'à l'événement natif `start` ; fins étrangères ignorées.
+  2. Après une interruption reprise automatiquement par iOS, la transcription restait en pause. → Transcription synchronisée avec l'état réel de l'enregistreur.
+  3. Les relances pouvaient réactiver la session audio pendant un appel. → Pause de la transcription dès que l'enregistreur est interrompu.
+  4. **Confidentialité** : le contrôle « hors ligne » du module porte sur la langue de l'iPhone, et le module retire sans prévenir la contrainte « sur l'appareil ». → Hors-ligne exigé seulement s'il est vérifiable (iPhone en français), sinon refus explicite.
+  5. Une retranscription partielle était marquée « complète ». → Statut `partial`.
+  6. Une correction pouvait être écrasée par une retranscription encore en cours. → Annulation à la sortie de l'écran ; écriture seulement si le texte n'a pas changé.
+  7. Une répétition volontaire (« Oui. Oui. ») était supprimée. → Dédoublonnage limité à 2 s.
+  8. Le texte récupéré après un plantage pouvait être perdu. → Transaction unique.
+  9. Le commentaire « l'audio d'abord » était faux. → L'audio est réellement arrêté en premier.
+  - **Risque supplémentaire corrigé** : un long silence de lecture déclenchait l'anti-boucle et coupait la transcription **définitivement**. Désormais, seuls les échecs rapides (moins de 1,5 s) comptent.
+  - Vérification : **101 tests Jest** + 20 Node. **3 tests de mutation** sur les correctifs principaux, tous détectés. `expo-doctor` 20/20. Bundle iOS ✅.
+
+## Bilan (14 h 40)
+
+- **Prêt** : code de la 0.3.0 (build 4) **commité en local**, non poussé. Une nouvelle IPA peut être compilée dès que le push est autorisé.
+- **Rien n'a été testé sur iPhone.** Le protocole H de [TEST-PROTOCOL-MVP.md](TEST-PROTOCOL-MVP.md) dira si la transcription fonctionne réellement.
+- **Message pour ChatGPT** prêt : [reviews/2026-11-11-transcription-en-direct.md](reviews/2026-11-11-transcription-en-direct.md).

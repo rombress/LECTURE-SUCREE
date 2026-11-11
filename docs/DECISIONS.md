@@ -39,4 +39,7 @@ Légende : ✅ validé (preuve citée) · 🔶 décidé, à confirmer sur appare
 | D33 | Session audio du moteur **identique** à celle d'expo-audio (`playAndRecord`, mode `default`, `defaultToSpeaker` + Bluetooth) | 🔶 | Lu dans les deux codes Swift ; effet réel ⏳ H3 |
 | D34 | Relance automatique des tâches de reconnaissance (400 ms) ; abandon au-delà de 6 relances en 60 s sans texte | ✅ | Testé (faux moteur, horloge simulée) |
 | D35 | Texte brut du moteur (`transcript_raw`) distinct du texte affiché et corrigeable (`transcript_text`) ; une correction n'est jamais écrasée ; retranscrire depuis l'audio demande une confirmation explicite | ✅ | Testé |
-| D36 | Transcription différée d'un fichier (repli) avec le même moteur, en lecture seule de l'audio | 🔶 | Testé avec un faux moteur ; ⏳ H12 |
+| D36 | Transcription différée d'un fichier (repli) avec le même moteur, en lecture seule de l'audio ; annulable ; résultat partiel signalé | 🔶 | Testé avec un faux moteur ; ⏳ H12 |
+| D37 | **Verrou moteur** : une seule utilisation (direct ou fichier) à la fois ; un arrêt pendant un démarrage est différé jusqu'à l'événement natif `start` | ✅ | Relecture indépendante (bug 1) ; testé + mutation |
+| D38 | **Hors-ligne exigé vérifiable** : sans autorisation du réseau, la transcription en direct n'a lieu que si l'iPhone est réglé en français. Sinon, refus explicite | ✅ | Swift du module : contrôle sur la langue de l'iPhone, et contrainte « sur l'appareil » retirée sans prévenir. **Si l'iPhone n'est pas en français, il faudra autoriser le réseau, ou passer à SpeechAnalyzer** |
+| D39 | La transcription suit l'état réel de l'enregistreur (pause en interruption, reprise automatique) | ✅ | Relecture indépendante (bugs 2 et 3) |

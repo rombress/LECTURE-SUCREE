@@ -26,6 +26,32 @@ Types : **local** = Windows 11, Node 24.20.0, npm 11.19.0 · **CI** = GitHub Act
 | 0.17 | APK installé sur Android | appareil | ⏸ V2 | Reporté (D16) |
 | 0.18 | IPA via AltServer, écran Diagnostic sur iPhone (permissions micro/voix + arrière-plan avec un compte gratuit) | appareil | ⏳ | Lot 0-bis |
 
+## Lot Transcription (0.3.0, build 4) — 2026-11-11 (travail autonome)
+
+| Niveau | Statut | Détail |
+|---|---|---|
+| 1. Bundle JS compilé | ✅ local | `tsc` 0 erreur ; ESLint typé 0 avertissement ; `expo-doctor` 20/20 ; bundle iOS 3 Mo |
+| 2. App native compilée | ⏳ | Aucun code natif modifié (expo-speech-recognition déjà dans les builds). Il faut un push autorisé, puis `ios-ipa` |
+| 3. IPA installée | ⏳ | |
+| 4. Testée sur iPhone | ⏳ | **Rien de la transcription n'a tourné sur un appareil.** Protocole H |
+
+Tests automatisés : **121** (101 Jest + 20 Node). Ce qu'ils couvrent :
+- **Accumulateur** de texte selon la sémantique iOS 18+, lue dans le Swift du module.
+- **Contrôleur en direct**, avec un faux moteur scriptable et une horloge simulée : relance automatique, anti-boucle limité aux échecs rapides, long silence toléré, erreurs bloquantes, interruption, arrêt différé pendant un démarrage, fins étrangères, libération pendant un démarrage, moteur muet à l'arrêt.
+- **Verrou moteur** : un enregistrement en direct annule une transcription de fichier, sans mélanger les textes.
+- **Transcription de fichier** : texte complet ou partiel, annulation, erreurs.
+- **Persistance**, sur un vrai SQLite :
+  - segments, brouillon, finalisation, recherche ;
+  - correction sans effet sur l'audio ;
+  - une correction n'est jamais écrasée, même pendant une retranscription ;
+  - statut partiel ;
+  - récupération après plantage.
+- **Préférences** et garde-fou de confidentialité.
+
+**Tests de mutation** : désactiver l'arrêt différé, le filtre des fins étrangères ou la règle des échecs rapides fait chaque fois échouer au moins un test.
+
+**Relecture indépendante** : 9 défauts réels trouvés et corrigés. Le détail est dans [WORKLOG-TRANSCRIPTION.md](WORKLOG-TRANSCRIPTION.md).
+
 ## Lot Suppressions (0.2.1, build 3) — 2026-11-11
 
 Retour de l'utilisateur sur la 0.2.0 : **les quatre tests prioritaires ont réussi sur iPhone** (F0, F3, F1/F5, F7).
