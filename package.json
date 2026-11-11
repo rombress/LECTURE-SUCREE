@@ -58,5 +58,17 @@
     "jest-expo": "~58.0.14",
     "react-dom": "19.3.0",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "expo",
+        "expo-asset",
+        "expo-constants",
+        "expo-linking",
+        "expo-router",
+        "expo-sqlite"
+      ]
+    }
   }
 }
