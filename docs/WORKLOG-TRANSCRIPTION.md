@@ -24,7 +24,11 @@
 ## Avancement
 
 - [x] Précautions et point de reprise
-- [ ] Logique pure de transcription (accumulateur, redémarrages) + tests
+- [x] Logique pure de transcription : accumulateur, contrôleur en direct, transcription de fichier. 20 tests, plus 2 tests de mutation détectés (commit local)
+  - Sémantique lue dans le Swift du module : sur iOS 18+, un résultat « final » est émis à **chaque pause de parole** et le texte suivant repart de zéro. Un final de fin de tâche peut répéter ou cumuler le texte déjà validé : il est dédoublonné.
+  - iOS termine régulièrement les tâches : relance automatique après 400 ms, abandon (« indisponible ») au-delà de 6 relances en 60 s sans aucun texte.
+  - Erreurs bloquantes (`not-allowed`, `service-not-allowed`, `language-not-supported`) : transcription indisponible, **l'enregistrement continue**.
+  - Interruption (appel) : pause de la transcription, reprise avec le bouton Reprendre.
 - [ ] Persistance (segments, brouillon, texte final, correction) + tests
 - [ ] Intégration à l'enregistrement + récupération après plantage
 - [ ] Écrans : texte en direct, session (affichage, correction, transcription différée), réglages
