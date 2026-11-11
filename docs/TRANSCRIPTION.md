@@ -14,6 +14,12 @@
   - correction du texte ;
   - transcription ou retranscription depuis l'audio ;
   - préférences : direct par défaut, reconnaissance en ligne interdite par défaut.
+- **0.3.1 (durcissement après relecture externe)** :
+  - **Session audio** : le module appelait `setCategory` à **chaque** relance. Un correctif Swift (`scripts/patch-speech-recognition.mjs`, appliqué par `postinstall`) ne l'appelle plus que si la configuration diffère. `setActive(true)` reste appelé : sans effet sur une session déjà active. Le module ne désactive jamais la session.
+  - **Erreurs isolées** : chaque gestionnaire d'événement natif est protégé. Une exception dans la transcription ne peut pas fermer l'app pendant l'enregistrement.
+  - **Interruptions** : comptées par l'anti-boucle, pour qu'une rafale (écran verrouillé) ne relance pas le moteur indéfiniment. Toute interruption marque le texte **partiel**, à compléter depuis l'audio.
+  - **Doublons** : un écho final sans intermédiaire est écarté quel que soit le délai. Les intermédiaires cumulés ne réaffichent plus le texte déjà validé.
+  - **Écran verrouillé** : la transcription n'y est **pas garantie**, et l'écran d'enregistrement le dit. Seul l'audio l'est.
 - **Risque principal à vérifier (H3)** : la capture simultanée du micro par AVAudioRecorder et AVAudioEngine. Le moteur reconfigure la session audio à chaque relance de tâche, avec des valeurs identiques à celles d'expo-audio. Ce point est soumis à relecture externe dans [reviews/2026-11-11-transcription-en-direct.md](reviews/2026-11-11-transcription-en-direct.md).
 
 ## V1 iPhone : les candidats natifs Apple (mise à jour du 2026-11-11)

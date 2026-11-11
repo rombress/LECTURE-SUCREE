@@ -19,6 +19,12 @@
  *    transcription.
  *  - Erreurs bloquantes (permission refusée, langue non prise en charge,
  *    service indisponible) : « indisponible », sans insister.
+ *  - Chaque gestionnaire d'événement natif est isolé (try/catch) : une
+ *    exception dans la transcription ne peut pas devenir une erreur JS
+ *    fatale, qui fermerait l'app pendant l'enregistrement.
+ *  - `hadGap` signale qu'une partie de la parole n'a peut-être pas été
+ *    transcrite (interruption, coupure, abandon) : le texte est alors
+ *    enregistré comme PARTIEL, à compléter depuis l'audio.
  */
 import type { ExpoSpeechRecognitionOptions } from 'expo-speech-recognition';
 
@@ -67,6 +73,7 @@ export class LiveTranscriber {
   private endWaiters: (() => void)[] = [];
   private release: (() => void) | null = null;
   private disposed = false;
+  private gap = false;
   private readonly holder: EngineHolder;
 
   constructor(
@@ -80,7 +87,7 @@ export class LiveTranscriber {
     // Si une autre utilisation (fichier) prend le moteur, on s'arrête proprement.
     this.holder = { cancel: () => this.stop().then(() => undefined) };
     this.unsubscribers.push(
-      engine.on('start', () => {
+      engine.on('start', () => this.guard(() => {
         if (this.phase !== 'starting') return;
         this.phase = 'running';
         this.taskStartedAt = this.now();
@@ -88,27 +95,40 @@ export class LiveTranscriber {
           this.stopWhenStarted = false;
           this.safe(() => (this.disposed ? this.engine.abort() : this.engine.stop()));
         }
-      }),
-      engine.on('result', ({ text, isFinal }) => {
+      })),
+      engine.on('result', ({ text, isFinal }) => this.guard(() => {
         if (this.phase === 'idle') return;
         for (const s of this.acc.onResult(text, isFinal)) this.cb.onCommit(s);
         this.cb.onChange(this.acc.fullText);
-      }),
-      engine.on('error', ({ code }) => {
+      })),
+      engine.on('error', ({ code }) => this.guard(() => {
         if (this.phase === 'idle') return;
         const fatal = FATAL[code];
         if (fatal) {
           this.wantRunning = false;
+          this.gap = true;
           this.setStatus('unavailable', fatal);
         } else if (code === 'interrupted') {
           // Appel, Siri, alarme, changement de route en arrière-plan : on attend
           // que l'enregistreur tourne de nouveau (resume() appelé par le hook).
+          // Compté comme échec rapide : des interruptions en rafale (ex. écran
+          // verrouillé) ne relancent pas le moteur indéfiniment.
+          this.gap = true;
+          if (this.tooManyRapidFailures()) {
+            this.wantRunning = false;
+            this.setStatus('unavailable', 'loop');
+            return;
+          }
           this.wantRunning = false;
           this.setStatus('paused');
+        } else if (code === 'audio-capture') {
+          // Micro occupé ou route audio perdue : « end » suit, relance normale
+          // (avec anti-boucle).
+          this.gap = true;
         }
         // Autres codes (no-speech, speech-timeout, aborted, network…) : non bloquants ; « end » suit.
-      }),
-      engine.on('end', () => this.handleEnd()),
+      })),
+      engine.on('end', () => this.guard(() => this.handleEnd())),
     );
   }
 
@@ -118,6 +138,11 @@ export class LiveTranscriber {
 
   get currentStatus(): TranscriberStatus {
     return this.status;
+  }
+
+  /** Une partie de la parole a pu ne pas être transcrite (interruption, abandon). */
+  get hadGap(): boolean {
+    return this.gap;
   }
 
   get reason(): UnavailableReason | undefined {
@@ -214,6 +239,7 @@ export class LiveTranscriber {
     } catch {
       this.phase = 'idle';
       this.wantRunning = false;
+      this.gap = true;
       this.setStatus('unavailable', 'unknown');
     }
   }
@@ -234,12 +260,10 @@ export class LiveTranscriber {
     if (!this.wantRunning) return;
 
     // Relance automatique. Seuls les échecs rapides comptent pour l'anti-boucle.
-    const t = this.now();
     if (neverStarted || lasted < RAPID_FAILURE_MS) {
-      this.rapidFailures = this.rapidFailures.filter((x) => t - x < RESTART_WINDOW_MS);
-      this.rapidFailures.push(t);
-      if (this.rapidFailures.length > MAX_RAPID_FAILURES) {
+      if (this.tooManyRapidFailures()) {
         this.wantRunning = false;
+        this.gap = true;
         this.setStatus('unavailable', 'loop');
         return;
       }
@@ -251,6 +275,14 @@ export class LiveTranscriber {
       this.restartTimer = null;
       if (this.wantRunning && !this.disposed && this.phase === 'idle') this.launch();
     }, RESTART_DELAY_MS);
+  }
+
+  /** Enregistre un échec rapide ; vrai si la limite est dépassée. */
+  private tooManyRapidFailures(): boolean {
+    const t = this.now();
+    this.rapidFailures = this.rapidFailures.filter((x) => t - x < RESTART_WINDOW_MS);
+    this.rapidFailures.push(t);
+    return this.rapidFailures.length > MAX_RAPID_FAILURES;
   }
 
   private detach() {
@@ -266,6 +298,15 @@ export class LiveTranscriber {
   private clearRestart() {
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = null;
+  }
+
+  /** Gestionnaire d'événement natif : aucune exception ne doit s'en échapper. */
+  private guard(fn: () => void) {
+    try {
+      fn();
+    } catch {
+      this.gap = true;
+    }
   }
 
   private safe(fn: () => void) {

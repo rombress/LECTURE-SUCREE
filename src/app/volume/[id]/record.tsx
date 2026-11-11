@@ -60,7 +60,7 @@ export default function RecordScreen() {
             : rec.phase === 'starting'
               ? 'Préparation…'
               : 'Prêt';
-  const tMessage = transcriptStatusMessage(rec.transcript, allowNetwork);
+  const tMessage = transcriptStatusMessage(rec.transcript, allowNetwork, rec.phase === 'paused');
   const tWarn = rec.transcript.status === 'unavailable';
 
   return (
@@ -118,6 +118,9 @@ export default function RecordScreen() {
                   <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>Transcription en direct</Text>
                   <Text style={{ color: colors.textMuted, fontSize: 12 }}>
                     {allowNetwork ? 'Français ; en ligne autorisé si nécessaire' : 'Français, sur l’iPhone uniquement'}
+                  </Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    L’audio est toujours enregistré. Écran verrouillé, le texte en direct n’est pas garanti : il peut être complété depuis l’audio.
                   </Text>
                 </View>
                 <Switch value={transcribeEnabled} onValueChange={setTranscribeOverride} />

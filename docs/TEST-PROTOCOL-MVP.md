@@ -9,6 +9,21 @@ Quatre niveaux, toujours rapportés **séparément** :
 
 Consigner chaque résultat dans [TEST-RESULTS.md](TEST-RESULTS.md) : date, version d'iOS, résultat, message exact en cas d'échec. Utiliser uniquement des **livres fictifs** pendant ces tests.
 
+## I. Protocole court de la transcription (0.3.1, build 5) — À FAIRE EN PREMIER
+
+Avec un **livre de test**, l'iPhone **réglé en français**, la transcription en direct activée (Réglages). Noter pour chaque test : OK / KO, et le message affiché.
+
+| # | Test | Résultat attendu |
+|---|---|---|
+| I1 | Enregistrer **30 s** en lisant un texte à voix haute | Le texte apparaît pendant la lecture ; aucun message d'erreur ; arrêt normal |
+| I2 | Ouvrir la session : **réécouter tout l'audio**, « Vérifier l'intégrité », relire le texte | Audio **complet et propre** (pas de coupure, pas de son étouffé ou haché) ; intégrité OK ; texte fidèle, **sans phrase en double** |
+| I3 | Enregistrer **3 min** avec plusieurs pauses silencieuses de 10 à 30 s | Audio complet ; le texte reprend après chaque pause ; rien de doublé ; noter si « Transcription : reprise… » s'affiche souvent |
+| I4 | Pendant un enregistrement, **verrouiller l'écran** 1 min en continuant de parler, puis déverrouiller | **L'audio doit être complet** (c'est la seule garantie). Le texte de la période verrouillée peut manquer : c'est attendu et ce n'est pas garanti. La session doit alors être marquée « partielle » |
+| I5 | **Mode avion**, puis enregistrer 30 s | Audio complet ; texte en direct présent (reconnaissance sur l'iPhone) |
+| I6 | Sur une session existante (par exemple I4) : « Retranscrire depuis l'audio » | Texte complet de tout l'audio, y compris le passage verrouillé ; l'audio est inchangé (intégrité OK) |
+
+**Règle de repli** : si I1, I2 ou I3 montrent un **audio dégradé** (coupure, son haché ou étouffé, durée fausse), désactiver la transcription en direct dans Réglages. L'app fonctionne alors en **enregistrement seul, suivi d'une transcription différée** (« Transcrire l'audio » sur la session). Me signaler le test et le symptôme.
+
 ## A. Installation et démarrage
 | # | Test | Attendu |
 |---|---|---|

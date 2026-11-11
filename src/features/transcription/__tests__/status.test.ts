@@ -23,6 +23,13 @@ describe('messages', () => {
       expect(m).toMatch(/audio/i);
     }
   });
+  it('pause : distingue la pause de l’utilisateur d’une interruption par le système', () => {
+    expect(transcriptStatusMessage({ status: 'paused' }, false, true)).toBe('Transcription en pause');
+    const sys = transcriptStatusMessage({ status: 'paused' }, false, false);
+    expect(sys).toMatch(/interrompue/);
+    expect(sys).toMatch(/audio continue/);
+    expect(sys).toMatch(/retranscrit/);
+  });
   it('en écoute : précise « sur l’iPhone » quand le réseau n’est pas autorisé', () => {
     expect(transcriptStatusMessage({ status: 'listening' }, false)).toMatch(/sur l’iPhone/);
     expect(transcriptStatusMessage({ status: 'off' }, false)).toBeNull();

@@ -253,6 +253,7 @@ export function useRecordingSession(db: DbLike | null, volumeId: string, transcr
       await recorder.stop();
       const t = transcriber.current;
       if (t) textPromise = t.stop().catch(() => t.text);
+      const gapSoFar = () => wasUnavailable.current || (t?.hadGap ?? false);
       const audio = await settleAudio(deviceAudioOps, s.id, s.startedAt, durationMs);
       await finalizeSession(db, s.id, { endedAt: new Date().toISOString(), durationMs, state: 'completed', audio });
       log.info('recording.completed', { durationMs, hasAudio: audio !== null });
@@ -264,7 +265,9 @@ export function useRecordingSession(db: DbLike | null, volumeId: string, transcr
           s.id,
           {
             raw: text,
-            status: finalTranscriptStatus(transcription.enabled, text, wasUnavailable.current),
+            // Interruption ou coupure pendant la session : texte PARTIEL
+            // (à compléter avec « Retranscrire depuis l'audio »).
+            status: finalTranscriptStatus(transcription.enabled, text, gapSoFar()),
             engine: transcription.enabled ? engineId(transcription.allowNetwork) : null,
             locale: transcription.enabled ? LOCALE : null,
           },

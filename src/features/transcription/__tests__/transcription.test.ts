@@ -118,6 +118,52 @@ describe('TranscriptAccumulator (sémantique iOS 18+)', () => {
   });
 });
 
+describe('TranscriptAccumulator — partiels, finals et doublons (0.3.1)', () => {
+  it('écho final SANS intermédiaire, même longtemps après (arrêt 5 s après la dernière phrase) : écarté', () => {
+    let now = 0;
+    const a = new TranscriptAccumulator([], () => now);
+    a.onResult('Il pleut', false);
+    a.onResult('Il pleut sur Paris.', true);
+    now += 5000;
+    expect(a.onResult('Il pleut sur Paris.', true)).toEqual([]);
+    expect(a.fullText).toBe('Il pleut sur Paris.');
+  });
+
+  it('vraie répétition rapide, précédée d’intermédiaires : conservée', () => {
+    let now = 0;
+    const a = new TranscriptAccumulator([], () => now);
+    a.onResult('Oui', false);
+    a.onResult('Oui.', true);
+    now += 500;
+    a.onResult('Oui', false);
+    expect(a.onResult('Oui.', true)).toEqual(['Oui.']);
+    expect(a.fullText).toBe('Oui. Oui.');
+  });
+
+  it('intermédiaires CUMULÉS (texte de toute la tâche) : la partie validée n’est pas affichée deux fois', () => {
+    const a = new TranscriptAccumulator();
+    a.onResult('Première phrase.', true);
+    a.onResult('Première phrase. Deuxième', false);
+    expect(a.fullText).toBe('Première phrase. Deuxième');
+    expect(a.onResult('Première phrase. Deuxième phrase.', true)).toEqual(['Deuxième phrase.']);
+    a.onResult('Première phrase. Deuxième phrase.', false); // rien de neuf
+    expect(a.interimText).toBe('');
+    expect(a.onResult('Première phrase. Deuxième phrase.', true)).toEqual([]); // écho
+    expect(a.segments).toEqual(['Première phrase.', 'Deuxième phrase.']);
+  });
+
+  it('plusieurs tâches successives (relances) : rien de perdu ni de doublé', () => {
+    const a = new TranscriptAccumulator();
+    a.onResult('Un', false);
+    a.onResult('Un.', true);
+    a.onTaskEnd();
+    a.onResult('Deux', false); // nouvelle tâche
+    a.onTaskEnd(); // coupée avant le final : l'intermédiaire est validé
+    a.onResult('Trois.', true);
+    expect(a.segments).toEqual(['Un.', 'Deux', 'Trois.']);
+  });
+});
+
 describe('LiveTranscriber', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
@@ -185,6 +231,60 @@ describe('LiveTranscriber', () => {
       h.t.resume();
       expect(h.calls.start).toBe(1); // blocage définitif
     }
+  });
+
+  it('une exception dans un rappel (sauvegarde, affichage) ne s’échappe JAMAIS du gestionnaire natif', async () => {
+    const f = fakeEngine();
+    const t = new LiveTranscriber(f.engine, liveOptions(false), {
+      onCommit: () => {
+        throw new Error('base indisponible');
+      },
+      onChange: () => {
+        throw new Error('rendu');
+      },
+      onStatus: () => undefined,
+    });
+    await t.start();
+    expect(() => f.emit.result('Texte', true)).not.toThrow();
+    expect(() => f.emit.error('network')).not.toThrow();
+    expect(() => f.emit.end()).not.toThrow();
+    expect(t.hadGap).toBe(true); // le texte direct sera marqué partiel
+  });
+
+  it('interruptions en rafale (ex. écran verrouillé) : pas de relance infinie', async () => {
+    const h = harness();
+    await h.t.start();
+    for (let i = 0; i < MAX_RAPID_FAILURES + 3; i++) {
+      h.emit.error('interrupted');
+      h.emit.end();
+      // Le hook ne relance que si la transcription est « en pause » et que l'enregistreur tourne.
+      if (h.t.currentStatus !== 'paused') break;
+      h.t.resume();
+    }
+    expect(h.t.currentStatus).toBe('unavailable');
+    expect(h.t.reason).toBe('loop');
+    expect(h.calls.start).toBeLessThanOrEqual(MAX_RAPID_FAILURES + 1);
+  });
+
+  it('micro occupé (audio-capture) : relance normale avec anti-boucle, trou signalé', async () => {
+    const h = harness();
+    await h.t.start();
+    h.emit.error('audio-capture');
+    h.emit.end();
+    jest.advanceTimersByTime(RESTART_DELAY_MS);
+    expect(h.calls.start).toBe(2);
+    expect(h.t.hadGap).toBe(true);
+  });
+
+  it('session sans incident : aucun trou signalé', async () => {
+    const h = harness();
+    await h.t.start();
+    h.emit.result('Tout va bien.', true);
+    h.tick(RAPID_FAILURE_MS * 10);
+    h.emit.end(); // fin normale d'une tâche longue par iOS : relance
+    jest.advanceTimersByTime(RESTART_DELAY_MS);
+    await h.t.stop();
+    expect(h.t.hadGap).toBe(false);
   });
 
   it('interruption : pause sans relance, puis reprise', async () => {

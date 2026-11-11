@@ -2,7 +2,7 @@ import { FileTranscriptionError } from './fileTranscriber';
 import type { LiveTranscriptState } from './status';
 
 /** Message affiché pour l'état de la transcription (l'audio n'est jamais concerné). */
-export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: boolean): string | null {
+export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: boolean, userPaused = false): string | null {
   switch (t.status) {
     case 'off':
     case 'idle':
@@ -13,7 +13,9 @@ export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: bo
     case 'restarting':
       return 'Transcription : reprise…';
     case 'paused':
-      return 'Transcription en pause';
+      return userPaused
+        ? 'Transcription en pause'
+        : 'Transcription interrompue par le système (appel, Siri, écran verrouillé…). L’audio continue ; elle reprend dès que possible. Le passage manquant pourra être retranscrit depuis l’audio.';
     case 'unavailable':
       switch (t.reason) {
         case 'permission':
@@ -22,6 +24,8 @@ export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: bo
           return 'Le français hors ligne n’est pas disponible ou pas vérifiable sur cet iPhone (langue de l’iPhone autre que le français). L’audio est enregistré ; la reconnaissance en ligne peut être autorisée dans Réglages.';
         case 'language':
           return 'Le français n’est pas pris en charge par la reconnaissance. L’audio est enregistré normalement.';
+        case 'loop':
+          return 'Transcription arrêtée après plusieurs échecs. L’audio continue d’être enregistré ; « Reprendre » après une pause réessaie, sinon transcrivez le fichier ensuite.';
         default:
           return 'Transcription interrompue. L’audio continue d’être enregistré ; vous pourrez transcrire le fichier ensuite.';
       }

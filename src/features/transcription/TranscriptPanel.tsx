@@ -16,8 +16,8 @@ import { transcribeSessionAudio } from './transcribeSession';
 const STATUS_NOTE: Record<SessionSummary['transcriptStatus'], string | null> = {
   none: null,
   complete: null,
-  partial: 'Transcription partielle (interrompue). L’audio complet reste disponible.',
-  failed: 'La transcription en direct n’a pas pu avoir lieu.',
+  partial: 'Transcription partielle (interrompue) : un passage peut manquer. L’audio complet reste disponible ; « Retranscrire depuis l’audio » peut compléter le texte.',
+  failed: 'La transcription en direct n’a pas pu avoir lieu. « Transcrire l’audio » reste possible.',
 };
 
 /**

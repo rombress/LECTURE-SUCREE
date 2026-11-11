@@ -8,9 +8,18 @@
  *    texte suivant repart de zéro ;
  *  - fin de tâche : l'éventuel texte intermédiaire restant est validé.
  * Un résultat final de fin de tâche peut RÉPÉTER du texte déjà validé dans
- * cette tâche : il est dédoublonné. Une répétition exacte du dernier énoncé
- * n'est écartée que si elle arrive moins de REPEAT_WINDOW_MS après lui (une
- * vraie répétition volontaire, « Oui. … Oui. », est conservée).
+ * cette tâche : il est dédoublonné. Un final identique au dernier énoncé (ou
+ * au cumul de la tâche) est un ÉCHO :
+ *  - en direct (des résultats intermédiaires existent) : s'il n'a été
+ *    précédé d'AUCUN résultat intermédiaire depuis la dernière validation,
+ *    quel que soit le délai (ex. arrêt 5 s après la dernière phrase). Une
+ *    vraie répétition (« Oui. … Oui. ») passe toujours par des
+ *    intermédiaires : elle est conservée ;
+ *  - sans intermédiaires (fichier) : s'il arrive moins de REPEAT_WINDOW_MS
+ *    après la validation précédente.
+ * Certains moteurs renvoient des intermédiaires CUMULÉS (texte de toute la
+ * tâche) : la partie déjà validée en est retirée, pour ne pas l'afficher deux
+ * fois.
  *
  * Pur et déterministe : testé sans appareil.
  */
@@ -28,6 +37,10 @@ export class TranscriptAccumulator {
   /** Énoncés validés dans la tâche de reconnaissance courante (dédoublonnage). */
   private taskCommitted: string[] = [];
   private interim = '';
+  /** Au moins un résultat intermédiaire reçu (mode direct). */
+  private sawInterim = false;
+  /** Un intermédiaire non vide est arrivé depuis la dernière validation. */
+  private interimSinceCommit = false;
 
   constructor(
     initialSegments: string[] = [],
@@ -39,25 +52,35 @@ export class TranscriptAccumulator {
   /** Traite un résultat. Retourne les énoncés NOUVELLEMENT validés (à persister). */
   onResult(rawText: string, isFinal: boolean): string[] {
     const text = normalizeSpaces(rawText);
+    const taskJoined = this.taskCommitted.join(' ');
+    // Partie nouvelle d'un texte cumulé (toute la tâche) ; '' si rien de neuf.
+    const fresh = taskJoined && (text === taskJoined || text.startsWith(`${taskJoined} `)) ? text.slice(taskJoined.length).trim() : text;
     if (!isFinal) {
-      this.interim = text;
+      this.interim = fresh;
+      if (fresh) {
+        this.sawInterim = true;
+        this.interimSinceCommit = true;
+      }
       return [];
     }
+    const hadInterim = this.interimSinceCommit;
     this.interim = '';
+    this.interimSinceCommit = false;
     if (!text) return [];
-    const taskJoined = this.taskCommitted.join(' ');
     const last = this.taskCommitted[this.taskCommitted.length - 1];
-    let toAdd = text;
-    const recent = this.now() - this.lastCommitAt < REPEAT_WINDOW_MS;
-    if (recent && (text === last || text === taskJoined)) return []; // écho de fin de tâche
-    if (taskJoined && text.startsWith(`${taskJoined} `)) toAdd = text.slice(taskJoined.length + 1); // cumul de la tâche
-    return this.commit(toAdd);
+    if (text === last || text === taskJoined) {
+      const echo = this.sawInterim ? !hadInterim : this.now() - this.lastCommitAt < REPEAT_WINDOW_MS;
+      if (echo) return []; // écho de fin de tâche
+      return this.commit(text); // vraie répétition
+    }
+    return this.commit(fresh);
   }
 
   /** Fin d'une tâche (arrêt, pause, coupure) : le texte intermédiaire est validé. */
   onTaskEnd(): string[] {
     const pending = this.interim;
     this.interim = '';
+    this.interimSinceCommit = false;
     const added = pending ? this.commit(pending) : [];
     this.taskCommitted = [];
     return added;

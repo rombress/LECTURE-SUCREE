@@ -26,6 +26,20 @@ Types : **local** = Windows 11, Node 24.20.0, npm 11.19.0 · **CI** = GitHub Act
 | 0.17 | APK installé sur Android | appareil | ⏸ V2 | Reporté (D16) |
 | 0.18 | IPA via AltServer, écran Diagnostic sur iPhone (permissions micro/voix + arrière-plan avec un compte gratuit) | appareil | ⏳ | Lot 0-bis |
 
+## Transcription : durcissement (0.3.1, build 5) — 2026-11-11
+
+Suite à la relecture externe (ChatGPT) de l'architecture : conserver l'implémentation, la durcir avant le premier essai réel.
+
+| # | Test | Type | Statut | Détail |
+|---|---|---|---|---|
+| T1 | `npm run verify` | local | ✅ | Confidentialité, TypeScript, ESLint (0 avertissement), **110 tests Jest + 23 tests Node** |
+| T2 | Mutations (4 défauts réintroduits volontairement) | local | ✅ | Chacun fait échouer au moins un test : isolation des gestionnaires, anti-boucle des interruptions, écho final tardif, intermédiaires cumulés |
+| T3 | Correctif Swift d'expo-speech-recognition appliqué par `postinstall` | local | ✅ | Appliqué une fois, idempotent, échec explicite si le code du module change (3 tests Node) |
+| T4 | Compilation du Swift corrigé | CI | ⏳ | Impossible sous Windows : vérifiée par le workflow `ios-ipa` |
+| T5 | Bundle iOS (`expo export`) | local | ✅ | 3 Mo |
+| T6 | `expo-doctor` | local | ⚠️ | 19/20 : des versions correctives d'Expo (ex. `expo` 58.0.23 → 58.0.24) sont parues le 2026-11-11. **Non mises à jour volontairement** avant l'essai sur iPhone. Sans rapport avec le code |
+| T7 | Protocole court (section I) | appareil | ⏳ | |
+
 ## Lot Transcription (0.3.0, build 4) — 2026-11-11 (travail autonome)
 
 | Niveau | Statut | Détail |
