@@ -29,7 +29,14 @@
   - iOS termine régulièrement les tâches : relance automatique après 400 ms, abandon (« indisponible ») au-delà de 6 relances en 60 s sans aucun texte.
   - Erreurs bloquantes (`not-allowed`, `service-not-allowed`, `language-not-supported`) : transcription indisponible, **l'enregistrement continue**.
   - Interruption (appel) : pause de la transcription, reprise avec le bouton Reprendre.
-- [ ] Persistance (segments, brouillon, texte final, correction) + tests
+- [x] Persistance, sans migration (colonnes et table `transcript_segments` présentes depuis le schéma v1). 8 tests (commit local) :
+  - chaque énoncé validé est écrit immédiatement ;
+  - brouillon (avec le texte en cours) toutes les 5 s ;
+  - à l'arrêt, texte brut + texte affiché ;
+  - **une correction de l'utilisateur n'est jamais écrasée** ;
+  - corriger ne touche ni l'audio ni le texte brut ;
+  - recherche plein texte à jour ;
+  - après un plantage, le texte le plus complet entre brouillon et segments est conservé.
 - [ ] Intégration à l'enregistrement + récupération après plantage
 - [ ] Écrans : texte en direct, session (affichage, correction, transcription différée), réglages
 - [ ] Vérification complète, documentation, message de relecture

@@ -1,4 +1,4 @@
-import type { AudioAsset, Id, SessionState } from '@/domain/models';
+import type { AudioAsset, Id, SessionState, TranscriptStatus } from '@/domain/models';
 
 import type { DbLike } from '../db/types';
 
@@ -26,6 +26,9 @@ export interface SessionSummary {
   audioPath: string | null;
   audioBytes: number | null;
   audioSha256: string | null;
+  /** Texte affiché/exporté (corrigeable par l'utilisateur). */
+  transcriptText: string;
+  transcriptStatus: TranscriptStatus;
 }
 
 interface Row {
@@ -41,10 +44,13 @@ interface Row {
   audio_path: string | null;
   audio_bytes: number | null;
   audio_sha256: string | null;
+  transcript_text: string;
+  transcript_status: TranscriptStatus;
 }
 
 const SELECT = `SELECT s.id, s.volume_id, v.title AS volume_title, v.author AS volume_author, s.started_at, s.ended_at,
-                       s.duration_ms, s.page, s.state, s.audio_path, s.audio_bytes, s.audio_sha256
+                       s.duration_ms, s.page, s.state, s.audio_path, s.audio_bytes, s.audio_sha256,
+                       s.transcript_text, s.transcript_status
                   FROM reading_sessions s JOIN volumes v ON v.id = s.volume_id`;
 
 function toSummary(r: Row): SessionSummary {
@@ -61,6 +67,8 @@ function toSummary(r: Row): SessionSummary {
     audioPath: r.audio_path,
     audioBytes: r.audio_bytes,
     audioSha256: r.audio_sha256,
+    transcriptText: r.transcript_text,
+    transcriptStatus: r.transcript_status,
   };
 }
 
@@ -126,12 +134,14 @@ export async function finalizeSession(
 }
 
 /** Sessions restées ouvertes (app tuée, plantage) : à récupérer au démarrage. */
-export async function listUnfinishedSessions(db: DbLike): Promise<{ id: Id; startedAt: string; durationMs: number }[]> {
-  const rows = await db.getAllAsync<{ id: string; started_at: string; duration_ms: number }>(
-    "SELECT id, started_at, duration_ms FROM reading_sessions WHERE state IN ('recording','paused')",
+export async function listUnfinishedSessions(
+  db: DbLike,
+): Promise<{ id: Id; startedAt: string; durationMs: number; transcriptDraft: string }[]> {
+  const rows = await db.getAllAsync<{ id: string; started_at: string; duration_ms: number; transcript_raw: string }>(
+    "SELECT id, started_at, duration_ms, transcript_raw FROM reading_sessions WHERE state IN ('recording','paused')",
     [],
   );
-  return rows.map((r) => ({ id: r.id, startedAt: r.started_at, durationMs: r.duration_ms }));
+  return rows.map((r) => ({ id: r.id, startedAt: r.started_at, durationMs: r.duration_ms, transcriptDraft: r.transcript_raw }));
 }
 
 /** Historique d'un tome, du plus récent au plus ancien. */
@@ -172,4 +182,84 @@ export async function listSessionAudioForVolume(
     [volumeId],
   );
   return rows.map((r) => ({ id: r.id, audioPath: r.audio_path, durationMs: r.duration_ms, state: r.state }));
+}
+
+// ---------------------------------------------------------------------------
+// Transcription (aucune de ces fonctions ne touche à l'audio)
+// ---------------------------------------------------------------------------
+
+/** Sauvegarde immédiate d'un énoncé validé (ajout seul, pendant l'enregistrement). */
+export async function appendTranscriptSegment(db: DbLike, sessionId: Id, seq: number, text: string, nowIso: string) {
+  await db.runAsync('INSERT INTO transcript_segments (session_id, seq, text, is_final, created_at) VALUES (?, ?, ?, 1, ?)', [
+    sessionId,
+    seq,
+    text,
+    nowIso,
+  ]);
+}
+
+export async function listTranscriptSegments(db: DbLike, sessionId: Id): Promise<string[]> {
+  const rows = await db.getAllAsync<{ text: string }>('SELECT text FROM transcript_segments WHERE session_id = ? ORDER BY seq', [sessionId]);
+  return rows.map((r) => r.text);
+}
+
+/** Brouillon régulier (texte en cours compris) pendant l'enregistrement. */
+export async function saveTranscriptDraft(db: DbLike, id: Id, raw: string, nowIso: string) {
+  await db.runAsync(
+    `UPDATE reading_sessions SET transcript_raw = ?, transcript_status = 'partial', updated_at = ?
+      WHERE id = ? AND state IN ('recording','paused')`,
+    [raw, nowIso, id],
+  );
+}
+
+/**
+ * Clôt la transcription d'une session TERMINÉE. Le texte affiché n'est
+ * rempli que s'il est vide : une correction de l'utilisateur n'est jamais
+ * écrasée.
+ */
+export async function finalizeTranscript(
+  db: DbLike,
+  id: Id,
+  t: { raw: string; status: TranscriptStatus; engine: string | null; locale: string | null },
+  nowIso: string,
+) {
+  await db.runAsync(
+    `UPDATE reading_sessions
+        SET transcript_raw = ?, transcript_status = ?, transcription_engine = ?, locale = ?,
+            transcript_text = CASE WHEN transcript_text = '' THEN ? ELSE transcript_text END,
+            updated_at = ?
+      WHERE id = ? AND state IN ('completed','interrupted')`,
+    [t.raw, t.status, t.engine, t.locale, t.raw, nowIso, id],
+  );
+}
+
+/** Retranscription depuis l'audio, demandée explicitement : remplace le texte brut ET le texte affiché. */
+export async function replaceTranscriptFromAudio(
+  db: DbLike,
+  id: Id,
+  t: { raw: string; engine: string; locale: string },
+  nowIso: string,
+) {
+  const res = await db.runAsync(
+    `UPDATE reading_sessions
+        SET transcript_raw = ?, transcript_text = ?, transcript_status = 'complete', transcription_engine = ?, locale = ?, updated_at = ?
+      WHERE id = ? AND state IN ('completed','interrupted')`,
+    [t.raw, t.raw, t.engine, t.locale, nowIso, id],
+  );
+  if (res.changes !== 1) throw new Error('Session introuvable ou en cours');
+}
+
+/** Correction manuelle du texte. Ne touche ni l'audio, ni le texte brut du moteur. */
+export async function updateTranscriptText(db: DbLike, id: Id, text: string, nowIso: string) {
+  const res = await db.runAsync(
+    `UPDATE reading_sessions SET transcript_text = ?, updated_at = ?
+      WHERE id = ? AND state IN ('completed','interrupted')`,
+    [text, nowIso, id],
+  );
+  if (res.changes !== 1) throw new Error('Session introuvable ou en cours');
+}
+
+export async function getTranscriptRaw(db: DbLike, id: Id): Promise<string | null> {
+  const r = await db.getFirstAsync<{ transcript_raw: string }>('SELECT transcript_raw FROM reading_sessions WHERE id = ?', [id]);
+  return r ? r.transcript_raw : null;
 }
