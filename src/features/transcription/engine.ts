@@ -63,3 +63,8 @@ export function fileOptions(uri: string, allowNetwork: boolean): ExpoSpeechRecog
 export function engineId(allowNetwork: boolean): string {
   return allowNetwork ? 'ios-sfspeech-network-allowed' : 'ios-sfspeech-ondevice';
 }
+
+/** Délai maximal : le moteur lit le fichier plus vite que le temps réel ; marge large. */
+export function fileTimeoutMs(durationMs: number): number {
+  return Math.max(60_000, durationMs * 2 + 30_000);
+}

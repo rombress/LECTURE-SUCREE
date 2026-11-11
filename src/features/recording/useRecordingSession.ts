@@ -34,13 +34,13 @@ import {
   saveTranscriptDraft,
   touchSession,
 } from '@/data/repositories/sessions';
-import type { TranscriptStatus } from '@/domain/models';
 import { utcOffsetOf } from '@/domain/time';
 import { log } from '@/services/log';
 
 import { deviceSpeechEngine, engineAvailability, requestSpeechPermission } from '@/features/transcription/deviceEngine';
 import { LOCALE, engineId, liveOptions } from '@/features/transcription/engine';
-import { LiveTranscriber, type TranscriberStatus, type UnavailableReason } from '@/features/transcription/liveTranscriber';
+import { LiveTranscriber } from '@/features/transcription/liveTranscriber';
+import { finalTranscriptStatus, type LiveTranscriptState } from '@/features/transcription/status';
 
 import { deviceAudioOps, settleAudio } from './audioStore';
 
@@ -71,10 +71,6 @@ export interface TranscriptionSetup {
   allowNetwork: boolean;
 }
 
-export type LiveTranscriptState =
-  | { status: 'off' }
-  | { status: TranscriberStatus; reason?: UnavailableReason };
-
 /** Exécute une action de transcription sans jamais laisser une erreur atteindre l'enregistrement. */
 function safely(fn: () => void) {
   try {
@@ -82,13 +78,6 @@ function safely(fn: () => void) {
   } catch {
     log.warn('transcription.action_failed');
   }
-}
-
-/** Statut final enregistré avec la session. */
-export function finalTranscriptStatus(enabled: boolean, text: string, unavailable: boolean): TranscriptStatus {
-  if (!enabled) return 'none';
-  if (unavailable) return text ? 'partial' : 'failed';
-  return text ? 'complete' : 'none';
 }
 
 export function useRecordingSession(db: DbLike | null, volumeId: string, transcription: TranscriptionSetup) {

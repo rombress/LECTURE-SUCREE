@@ -1,4 +1,5 @@
-import type { LiveTranscriptState } from '@/features/recording/useRecordingSession';
+import { FileTranscriptionError } from './fileTranscriber';
+import type { LiveTranscriptState } from './status';
 
 /** Message affiché pour l'état de la transcription (l'audio n'est jamais concerné). */
 export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: boolean): string | null {
@@ -24,5 +25,25 @@ export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: bo
         default:
           return 'Transcription interrompue. L’audio continue d’être enregistré ; vous pourrez transcrire le fichier ensuite.';
       }
+  }
+}
+
+export function fileTranscriptionMessage(e: unknown): string {
+  const code = e instanceof FileTranscriptionError ? e.code : 'unknown';
+  switch (code) {
+    case 'no-offline':
+      return 'Le français hors ligne n’est pas disponible sur cet iPhone. Vous pouvez autoriser la reconnaissance en ligne dans Réglages.';
+    case 'not-allowed':
+      return 'La reconnaissance vocale est refusée (Réglages › Lecture sucrée).';
+    case 'language-not-supported':
+      return 'Le français n’est pas pris en charge par la reconnaissance.';
+    case 'no-audio':
+      return 'Fichier audio introuvable.';
+    case 'empty':
+      return 'Aucune parole reconnue dans cet enregistrement.';
+    case 'timeout':
+      return 'La transcription a pris trop de temps et a été arrêtée.';
+    default:
+      return 'La transcription a échoué. L’audio n’a pas été modifié.';
   }
 }

@@ -1,7 +1,12 @@
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Screen } from '@/components/Screen';
+import { useDb } from '@/data/db/DatabaseProvider';
+import { getTranscriptionPrefs, setTranscriptionPrefs, type TranscriptionPrefs } from '@/data/repositories/settings';
+import { useFocusLoad } from '@/features/library/useFocusLoad';
+import { log } from '@/services/log';
 import { useTheme } from '@/theme/ThemeProvider';
 import { accentPresets, spacing, type ThemePreference } from '@/theme/tokens';
 
@@ -13,6 +18,17 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 
 export default function SettingsScreen() {
   const { colors, preference, setPreference, setAccent } = useTheme();
+  const db = useDb();
+  const load = useCallback(() => getTranscriptionPrefs(db), [db]);
+  const { data: loaded } = useFocusLoad(load);
+  const [local, setLocal] = useState<TranscriptionPrefs | null>(null);
+  const prefs = local ?? loaded;
+  const update = (patch: Partial<TranscriptionPrefs>) => {
+    if (!prefs) return;
+    const next = { ...prefs, ...patch };
+    setLocal(next);
+    setTranscriptionPrefs(db, next).catch(() => log.warn('settings.save_failed'));
+  };
   return (
     <Screen title="Réglages" subtitle="Les autres réglages arriveront avec leurs lots respectifs.">
       <Text style={[styles.section, { color: colors.textSecondary }]}>Thème</Text>
@@ -46,6 +62,29 @@ export default function SettingsScreen() {
         ))}
       </View>
 
+      <Text style={[styles.section, { color: colors.textSecondary }]}>Transcription (français)</Text>
+      {prefs ? (
+        <>
+          <View style={[styles.switchRow, { borderColor: colors.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.textPrimary }}>Transcription en direct</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 12 }}>Valeur par défaut au début de chaque session.</Text>
+            </View>
+            <Switch value={prefs.live} onValueChange={(v) => update({ live: v })} />
+          </View>
+          <View style={[styles.switchRow, { borderColor: colors.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.textPrimary }}>Autoriser la reconnaissance en ligne</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                Désactivé : la voix est reconnue uniquement sur l’iPhone (hors ligne, rien n’est envoyé). Activé : si le français hors ligne
+                n’est pas disponible, iOS peut envoyer l’audio aux serveurs d’Apple pour la reconnaissance.
+              </Text>
+            </View>
+            <Switch value={prefs.allowNetwork} onValueChange={(v) => update({ allowNetwork: v })} />
+          </View>
+        </>
+      ) : null}
+
       <Text style={[styles.section, { color: colors.textSecondary }]}>Technique</Text>
       <Link href="/diagnostic" asChild>
         <Pressable accessibilityRole="button" style={[styles.button, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
@@ -63,4 +102,5 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: 999, borderWidth: 1 },
   swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 2 },
   button: { padding: spacing.lg, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
 });

@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, EmptyState } from '@/components/ui';
 import { useDb } from '@/data/db/DatabaseProvider';
 import { getSession, type SessionSummary } from '@/data/repositories/sessions';
+import { getTranscriptionPrefs } from '@/data/repositories/settings';
 import { formatDateTime, formatDuration } from '@/domain/time';
 import { useFocusLoad } from '@/features/library/useFocusLoad';
 import { confirmSessionDeletion, showDeletionError } from '@/features/deletion/confirm';
@@ -13,6 +14,7 @@ import { deleteSession } from '@/features/deletion/deletion';
 import { deviceTrashOps } from '@/features/deletion/deviceTrash';
 import { finalFile } from '@/features/recording/audioStore';
 import { shareSessionAudio, type ShareResult } from '@/features/recording/shareAudio';
+import { TranscriptPanel } from '@/features/transcription/TranscriptPanel';
 import { log } from '@/services/log';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, spacing } from '@/theme/tokens';
@@ -21,11 +23,16 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const db = useDb();
   const { colors, fonts } = useTheme();
-  const load = useCallback(() => getSession(db, id), [db, id]);
-  const { data: session, failed } = useFocusLoad(load);
+  const load = useCallback(async () => {
+    const [session, prefs] = await Promise.all([getSession(db, id), getTranscriptionPrefs(db)]);
+    return { session, prefs };
+  }, [db, id]);
+  const { data, failed, reload } = useFocusLoad(load);
 
   if (failed) return <EmptyState title="Erreur" text="Impossible de charger cette session." />;
-  if (!session) return null;
+  if (!data) return null;
+  const { session, prefs } = data;
+  if (!session) return <EmptyState title="Session introuvable" text="Cette session n’existe plus." />;
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
@@ -44,9 +51,12 @@ export default function SessionScreen() {
       ) : (
         <Text style={{ color: colors.warning }}>Aucun audio n’a été enregistré pour cette session.</Text>
       )}
-      <Text style={{ color: colors.textMuted, fontSize: 13 }}>
-        La transcription arrivera dans un prochain lot. L’audio original ci-dessus ne sera jamais modifié.
-      </Text>
+      <TranscriptPanel
+        key={`${session.id}:${session.transcriptText.length}:${session.transcriptStatus}`}
+        session={session}
+        allowNetwork={prefs.allowNetwork}
+        onChanged={reload}
+      />
       <View style={{ marginTop: spacing.xl }}>
         <Button
           label="Supprimer cette session"
