@@ -8,6 +8,9 @@ import { useDb } from '@/data/db/DatabaseProvider';
 import { getSession, type SessionSummary } from '@/data/repositories/sessions';
 import { formatDateTime, formatDuration } from '@/domain/time';
 import { useFocusLoad } from '@/features/library/useFocusLoad';
+import { confirmSessionDeletion, showDeletionError } from '@/features/deletion/confirm';
+import { deleteSession } from '@/features/deletion/deletion';
+import { deviceTrashOps } from '@/features/deletion/deviceTrash';
 import { finalFile } from '@/features/recording/audioStore';
 import { shareSessionAudio, type ShareResult } from '@/features/recording/shareAudio';
 import { log } from '@/services/log';
@@ -44,6 +47,23 @@ export default function SessionScreen() {
       <Text style={{ color: colors.textMuted, fontSize: 13 }}>
         La transcription arrivera dans un prochain lot. L’audio original ci-dessus ne sera jamais modifié.
       </Text>
+      <View style={{ marginTop: spacing.xl }}>
+        <Button
+          label="Supprimer cette session"
+          variant="secondary"
+          onPress={() =>
+            void (async () => {
+              if (!(await confirmSessionDeletion(session))) return;
+              try {
+                await deleteSession(db, deviceTrashOps, session.id);
+                router.back();
+              } catch (e) {
+                showDeletionError(e);
+              }
+            })()
+          }
+        />
+      </View>
     </ScrollView>
   );
 }

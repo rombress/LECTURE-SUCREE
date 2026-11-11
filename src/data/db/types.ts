@@ -9,4 +9,6 @@ export interface DbLike {
   getAllAsync<T>(sql: string, params: SqlParam[]): Promise<T[]>;
   getFirstAsync<T>(sql: string, params: SqlParam[]): Promise<T | null>;
   runAsync(sql: string, params: SqlParam[]): Promise<{ changes: number }>;
+  /** Transaction : tout ou rien (expo-sqlite : withTransactionAsync). */
+  withTransactionAsync(task: () => Promise<void>): Promise<void>;
 }

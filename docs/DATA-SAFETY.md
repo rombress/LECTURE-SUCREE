@@ -14,7 +14,8 @@ Uniquement **sur ton iPhone**, dans l'espace privé de l'app : la base SQLite (l
 | Appel, Siri, alarme pendant l'enregistrement | Le recorder se met en pause (code d'expo-audio vérifié) ; tu reprends ensuite. *À confirmer sur l'iPhone (C7)* |
 | Écran verrouillé, app en arrière-plan | Enregistrement autorisé à continuer (mode audio d'arrière-plan). *À confirmer (C5, C6)* |
 | App tuée ou plantage pendant l'enregistrement | Session et fichier conservés et récupérés au lancement suivant (testé localement). **Lisibilité du fichier non garantie** : un m4a non finalisé peut être illisible. *Mesure clé : C9* |
-| Fausse manœuvre | Le MVP ne permet **aucune** suppression de livre ni de session |
+| Fausse manœuvre (0.2.1) | Toute suppression passe par une confirmation iOS (bouton rouge) ; un livre avec sessions demande **deux** confirmations et affiche ce qui sera perdu. Supprimer une série ne supprime jamais ses tomes ni leurs sessions |
+| Suppression interrompue (plantage, panne) | Corbeille interne : l'audio n'est effacé qu'après la suppression en base ; en cas d'échec, il est remis en place ; réparation automatique au lancement (testé avec pannes simulées) |
 | Expiration de la signature (7 jours) | L'app ne se lance plus, mais **les données restent** sur l'iPhone. Elles redeviennent accessibles après un Refresh ou une réinstallation du même bundle ID (comportement documenté par la communauté, *à confirmer : E2*) |
 | Installation d'une nouvelle version de l'IPA | Données conservées si le bundle ID est le même (*à confirmer : E1*) |
 | Séries (0.2.0) | Retirer une série ne supprime aucun tome, aucune session, aucun audio (testé) ; déplacer un tome ne touche jamais ses sessions (testé) |
@@ -26,6 +27,7 @@ Uniquement **sur ton iPhone**, dans l'espace privé de l'app : la base SQLite (l
 
 | Risque | Conséquence | Parade disponible aujourd'hui |
 |---|---|---|
+| **Suppression volontaire** d'une session ou d'un livre (0.2.1) | **Définitive** : pas de corbeille visible ni d'annulation après confirmation | Exporter l'audio avant ; lire les confirmations |
 | **Suppression de l'app** (par toi, par iOS « Décharger les apps inutilisées », ou lors d'une réinstallation forcée) | **Tout est perdu** : livres, sessions, audio | Exporter régulièrement les audios importants ; désactiver *Réglages › App Store › Décharger les apps inutilisées* |
 | Perte, vol ou casse de l'iPhone | Tout est perdu, sauf ce qui a été exporté ou inclus dans la sauvegarde iCloud de l'iPhone | Idem |
 | La base SQLite (livres, dates, pages, liens audio ↔ livre) | **Aucun export** dans le MVP. Un audio exporté garde le titre et la date dans son **nom**, mais pas le reste | Lot Sauvegarde (archive complète + restauration testée) |

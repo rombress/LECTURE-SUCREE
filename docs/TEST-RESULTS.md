@@ -26,12 +26,37 @@ Types : **local** = Windows 11, Node 24.20.0, npm 11.19.0 · **CI** = GitHub Act
 | 0.17 | APK installé sur Android | appareil | ⏸ V2 | Reporté (D16) |
 | 0.18 | IPA via AltServer, écran Diagnostic sur iPhone (permissions micro/voix + arrière-plan avec un compte gratuit) | appareil | ⏳ | Lot 0-bis |
 
+## Lot Suppressions (0.2.1, build 3) — 2026-11-11
+
+Retour de l'utilisateur sur la 0.2.0 : **les quatre tests prioritaires ont réussi sur iPhone** (F0, F3, F1/F5, F7).
+
+| Niveau | Statut | Détail |
+|---|---|---|
+| 1. Bundle JS compilé | ✅ local | `tsc` 0 erreur ; ESLint typé 0 avertissement ; `expo-doctor` 20/20 ; bundle iOS 2,9 Mo |
+| 2. App native compilée | ⏳ | Il faut un push (autorisation requise), puis `ios-ipa` |
+| 3. IPA installée | ⏳ | |
+| 4. Testée sur iPhone | ⏳ | Section G de [TEST-PROTOCOL-MVP.md](TEST-PROTOCOL-MVP.md) |
+
+Tests automatisés : **81** (61 Jest + 20 Node). Nouveaux tests (`deletion.test.ts`, SQLite réel + système de fichiers simulé) :
+- une session supprimée emporte ses segments, ses catégories, son entrée de recherche et son audio, et **rien d'autre** ;
+- une session en cours ne peut pas être supprimée ;
+- panne de la base : l'audio est restauré et la session reste intacte ;
+- panne du fichier : rien n'est supprimé ;
+- purge impossible : le fichier reste en corbeille, puis il est purgé au lancement ;
+- résumé de suppression d'un livre ;
+- suppression d'un livre : seuls ce livre, ses sessions et ses audios disparaissent ; l'autre tome, ses sessions et la série restent ;
+- **panne au milieu de la transaction : annulation complète et audios restaurés** ;
+- un livre en cours d'enregistrement ne peut pas être supprimé ;
+- réparation au lancement après un plantage.
+
+**Test de mutation** : en désactivant volontairement la restauration de l'audio, 1 test échoue ; le code d'origine a été rétabli ensuite (10/10 au vert).
+
 ## Lot Bibliothèque (0.2.0, build 2) — 2026-11-11
 
 | Niveau | Statut | Détail |
 |---|---|---|
 | 1. Bundle JS compilé | ✅ local | `tsc` 0 erreur ; ESLint typé 0 avertissement ; `expo-doctor` 20/20 ; bundle iOS 2,9 Mo ; Info.plist introspecté (micro ✓, voix ✓, photos ✓, arrière-plan audio ✓, pas de caméra) |
-| 2. App native compilée | ⏳ | Il faut un push (autorisation requise), puis `ios-ipa` |
+| 2. App native compilée | ✅ CI | Run `ios-ipa` 43020252873 sur `baccf6c` (2026-11-11, de 12:25 à 12:42 UTC) : toutes les étapes vertes, inspection de l'IPA comprise ; artefact de 12,1 Mo |
 | 3. IPA installée | ⏳ | Par-dessus la 0.1.0 : test E1 |
 | 4. Testée sur iPhone | ⏳ | Section F de [TEST-PROTOCOL-MVP.md](TEST-PROTOCOL-MVP.md) |
 

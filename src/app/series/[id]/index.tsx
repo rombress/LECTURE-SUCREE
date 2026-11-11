@@ -10,6 +10,7 @@ import { useDb } from '@/data/db/DatabaseProvider';
 import { getSeries, removeSeries } from '@/data/repositories/series';
 import { listVolumesInSeries } from '@/data/repositories/volumes';
 import { VOLUME_STATUS_LABELS } from '@/domain/models';
+import { discardCover } from '@/features/covers/coverStore';
 import { useFocusLoad } from '@/features/library/useFocusLoad';
 import { log } from '@/services/log';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -31,7 +32,7 @@ export default function SeriesScreen() {
   if (failed) return <EmptyState title="Erreur" text="Impossible de charger cette série." />;
   if (!data) return null;
   const { series, volumes } = data;
-  if (!series) return <EmptyState title="Série introuvable" text="Cette série a été retirée." />;
+  if (!series) return <EmptyState title="Série introuvable" text="Cette série a été supprimée." />;
 
   const heroCover = series.coverPath ?? volumes.find((v) => v.coverPath)?.coverPath ?? null;
   const finished = volumes.filter((v) => v.status === 'finished').length;
@@ -39,23 +40,26 @@ export default function SeriesScreen() {
 
   const confirmRemove = () => {
     Alert.alert(
-      'Retirer la série ?',
+      'Supprimer la série ?',
       volumes.length
-        ? `Ses ${volumes.length} tome${volumes.length > 1 ? 's' : ''} resteront dans la bibliothèque comme livres indépendants, avec toutes leurs sessions et enregistrements. Seule la série disparaît.`
-        : 'La série est vide. Elle sera simplement retirée.',
+        ? `Seule la série « ${series.title} » est supprimée.\n\nSes ${volumes.length} tome${volumes.length > 1 ? 's' : ''} ne sont PAS supprimés : ils restent dans la bibliothèque comme livres indépendants, avec toutes leurs sessions et enregistrements audio.`
+        : 'La série est vide. Elle sera simplement supprimée.',
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Retirer la série',
+          text: 'Supprimer la série',
           style: 'destructive',
           onPress: () => {
             setRemoving(true);
             removeSeries(db, series.id, new Date().toISOString())
-              .then(() => router.back())
+              .then(() => {
+                discardCover(series.coverPath); // copie privée de la couverture de la série uniquement
+                router.back();
+              })
               .catch((e: unknown) => {
                 log.error('series.remove_failed', { kind: e instanceof Error ? e.name : 'unknown' });
                 setRemoving(false);
-                Alert.alert('Échec', 'La série n’a pas pu être retirée. Rien n’a été modifié.');
+                Alert.alert('Échec', 'La série n’a pas pu être supprimée. Rien n’a été modifié.');
               });
           },
         },
@@ -121,9 +125,9 @@ export default function SeriesScreen() {
         )}
 
         <View style={styles.danger}>
-          <Button label="Retirer la série" variant="secondary" onPress={confirmRemove} busy={removing} />
+          <Button label="Supprimer la série" variant="secondary" onPress={confirmRemove} busy={removing} />
           <Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'center' }}>
-            Les tomes et leurs sessions ne sont jamais supprimés.
+            Les tomes deviennent indépendants ; leurs sessions et audios ne sont jamais supprimés.
           </Text>
         </View>
       </View>

@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { sweepTrash } from '@/features/deletion/deletion';
+import { deviceTrashOps } from '@/features/deletion/deviceTrash';
 import { deviceAudioOps } from '@/features/recording/audioStore';
 import { recoverUnfinishedSessions } from '@/features/recording/recovery';
 import { log } from '@/services/log';
@@ -26,6 +28,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       const opened = await getDatabase();
+      // 1. Répare une suppression interrompue (corbeille), 2. récupère les enregistrements interrompus.
+      await sweepTrash(opened, deviceTrashOps).catch(() => log.error('app.trash_sweep_failed'));
       await recoverUnfinishedSessions(opened, deviceAudioOps, new Date().toISOString());
       if (!cancelled) setDb(opened);
     })().catch((e: unknown) => {

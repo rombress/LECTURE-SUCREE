@@ -5,11 +5,13 @@ import { log } from '@/services/log';
 
 /**
  * Recharge les données à chaque fois que l'écran reprend le focus (retour
- * depuis un formulaire ou un enregistrement). `load` doit être mémoïsée.
+ * depuis un formulaire ou un enregistrement), ou sur demande (`reload`,
+ * ex. après une suppression). `load` doit être mémoïsée.
  */
 export function useFocusLoad<T>(load: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
   const [failed, setFailed] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -28,8 +30,11 @@ export function useFocusLoad<T>(load: () => Promise<T>) {
       return () => {
         alive = false;
       };
-    }, [load]),
+      // `tick` force un rechargement sans changer de focus.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [load, tick]),
   );
 
-  return { data, failed };
+  const reload = useCallback(() => setTick((t) => t + 1), []);
+  return { data, failed, reload };
 }

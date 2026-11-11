@@ -144,3 +144,23 @@ export async function listVolumesInSeries(db: DbLike, seriesId: Id): Promise<Vol
   );
   return rows.map((r) => ({ ...toVolume(r), sessionCount: r.session_count, lastSessionAt: r.last_session_at }));
 }
+
+/**
+ * Supprime un tome ET toutes ses sessions, dans UNE transaction (tout ou rien).
+ * Les autres tomes, séries et sessions ne sont jamais touchés. Les fichiers
+ * (audio, couverture) sont gérés par l'appelant (features/deletion).
+ */
+export async function deleteVolumeWithSessions(db: DbLike, id: Id): Promise<{ sessionsDeleted: number }> {
+  let sessionsDeleted = 0;
+  await db.withTransactionAsync(async () => {
+    const active = await db.getFirstAsync<{ n: number }>(
+      "SELECT count(*) AS n FROM reading_sessions WHERE volume_id = ? AND state IN ('recording','paused')",
+      [id],
+    );
+    if ((active?.n ?? 0) > 0) throw new Error('Un enregistrement est en cours sur ce tome');
+    sessionsDeleted = (await db.runAsync('DELETE FROM reading_sessions WHERE volume_id = ?', [id])).changes;
+    const res = await db.runAsync('DELETE FROM volumes WHERE id = ?', [id]);
+    if (res.changes !== 1) throw new Error('Tome introuvable');
+  });
+  return { sessionsDeleted };
+}

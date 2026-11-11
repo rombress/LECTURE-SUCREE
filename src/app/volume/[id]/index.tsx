@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,9 +8,14 @@ import { SessionRow } from '@/components/SessionRow';
 import { Button, EmptyState, SectionTitle } from '@/components/ui';
 import { useDb } from '@/data/db/DatabaseProvider';
 import { getSeries } from '@/data/repositories/series';
-import { listSessionsForVolume } from '@/data/repositories/sessions';
+import { listSessionsForVolume, type SessionSummary } from '@/data/repositories/sessions';
 import { getVolume } from '@/data/repositories/volumes';
 import { VOLUME_STATUS_LABELS } from '@/domain/models';
+import { formatDuration } from '@/domain/time';
+import { discardCover } from '@/features/covers/coverStore';
+import { confirmDestructive, confirmSessionDeletion, showDeletionError } from '@/features/deletion/confirm';
+import { DeletionError, deleteSession, deleteVolume, summarizeVolumeDeletion } from '@/features/deletion/deletion';
+import { deviceTrashOps } from '@/features/deletion/deviceTrash';
 import { useFocusLoad } from '@/features/library/useFocusLoad';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, spacing } from '@/theme/tokens';
@@ -25,7 +30,57 @@ export default function VolumeScreen() {
     const series = volume?.seriesId ? await getSeries(db, volume.seriesId) : null;
     return { volume, sessions, series };
   }, [db, id]);
-  const { data, failed } = useFocusLoad(load);
+  const { data, failed, reload } = useFocusLoad(load);
+  const [deleting, setDeleting] = useState(false);
+
+  const onDeleteSession = async (s: SessionSummary) => {
+    if (!(await confirmSessionDeletion(s))) return;
+    try {
+      await deleteSession(db, deviceTrashOps, s.id);
+    } catch (e) {
+      showDeletionError(e);
+    }
+    reload();
+  };
+
+  const onDeleteVolume = async () => {
+    const v = data?.volume;
+    if (!v) return;
+    const sum = await summarizeVolumeDeletion(db, v.id);
+    if (sum.activeCount > 0) {
+      showDeletionError(new DeletionError('active', 'Un enregistrement est en cours sur ce livre. Terminez-le avant de supprimer le livre.'));
+      return;
+    }
+    const first = await confirmDestructive(
+      'Supprimer ce livre ?',
+      sum.sessionCount === 0
+        ? `« ${v.title} » sera supprimé de la bibliothèque. Il n’a aucune session.`
+        : `« ${v.title} » a ${sum.sessionCount} session${sum.sessionCount > 1 ? 's' : ''} (${formatDuration(sum.totalDurationMs)} au total)` +
+            `${sum.audioCount ? ` et ${sum.audioCount} enregistrement${sum.audioCount > 1 ? 's' : ''} audio` : ''}.\n\n` +
+            'Elles seront DÉFINITIVEMENT supprimées avec le livre. Exportez d’abord les audios à conserver.\n\n' +
+            'Les autres livres, tomes et séries ne sont pas touchés.',
+      'Supprimer…',
+    );
+    if (!first) return;
+    if (sum.sessionCount > 0) {
+      const second = await confirmDestructive(
+        'Confirmer la suppression définitive',
+        `${sum.sessionCount} session${sum.sessionCount > 1 ? 's' : ''} et leurs audios seront effacés. Cette action est irréversible.`,
+        'Tout supprimer',
+      );
+      if (!second) return;
+    }
+    setDeleting(true);
+    try {
+      const { coverPath } = await deleteVolume(db, deviceTrashOps, v.id);
+      discardCover(coverPath);
+      router.back();
+    } catch (e) {
+      setDeleting(false);
+      showDeletionError(e);
+      reload();
+    }
+  };
 
   if (failed) return <EmptyState title="Erreur" text="Impossible de charger ce livre." />;
   if (!data) return null;
@@ -80,8 +135,19 @@ export default function VolumeScreen() {
             Aucune session pour l’instant. Lancez-en une pour dicter vos réflexions.
           </Text>
         ) : (
-          sessions.map((s) => <SessionRow key={s.id} session={s} />)
+          <>
+            {sessions.map((s) => (
+              <SessionRow key={s.id} session={s} onDelete={(x) => void onDeleteSession(x)} />
+            ))}
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: spacing.xs }}>
+              Appui long sur une session pour la supprimer.
+            </Text>
+          </>
         )}
+
+        <View style={styles.danger}>
+          <Button label="Supprimer ce livre" variant="secondary" onPress={() => void onDeleteVolume()} busy={deleting} />
+        </View>
       </View>
     </ScrollView>
   );
@@ -98,4 +164,5 @@ const styles = StyleSheet.create({
   badge: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3, fontSize: 12, fontWeight: '700' },
   actions: { gap: spacing.sm, marginTop: spacing.lg },
   description: { marginTop: spacing.md, lineHeight: 22 },
+  danger: { marginTop: spacing.xxl },
 });

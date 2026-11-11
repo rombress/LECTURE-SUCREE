@@ -69,4 +69,21 @@ Consigner chaque résultat dans [TEST-RESULTS.md](TEST-RESULTS.md) : date, versi
 | F9 | Enregistrer une session dans un tome d'une série | Fonctionne comme avant (non-régression audio) |
 | C3 | (en attente) Enregistrement de 10 min | Durée ≈ 10:00, réécoute complète |
 
+## G. Suppressions (version 0.2.1, build 3)
+
+Utiliser **uniquement des livres et sessions de test**. Installer par-dessus la 0.2.0 (G0 = non-régression des données).
+
+| # | Test | Attendu |
+|---|---|---|
+| G0 | Après la mise à jour, ouvrir l'app | Livres, séries, couvertures et sessions de la 0.2.0 présents |
+| G1 | Fiche d'un livre → **appui long** sur une session → « Supprimer la session… » → Annuler | Rien ne change |
+| G2 | Idem → Supprimer | La session disparaît ; les **autres sessions** du livre restent et se réécoutent |
+| G3 | Ouvrir une session → « Supprimer cette session » → Supprimer | Retour à la fiche ; la session n'est plus listée (fiche ni Archives) |
+| G4 | « Supprimer ce livre » sur un livre **sans** session | Une seule confirmation ; le livre disparaît |
+| G5 | « Supprimer ce livre » sur un livre **avec** sessions | 1re confirmation : nombre de sessions et d'audios, durée totale ; **2e confirmation** ; puis le livre et ses sessions disparaissent (Archives comprises) |
+| G6 | Après G5 | Les **autres livres**, tomes d'une même série et la série sont intacts |
+| G7 | Fiche d'une série → « Supprimer la série » | Le message explique que les tomes restent ; après confirmation, ils sont indépendants avec toutes leurs sessions |
+| G8 | Fermer complètement l'app, rouvrir | Les suppressions persistent ; rien d'inattendu ne réapparaît |
+| G9 | Non-régression : enregistrer, réécouter, exporter une session ; changer une couverture | Fonctionne comme en 0.2.0 |
+
 **Tant que E3 n'est pas validé, aucune donnée n'est sauvegardée hors de l'iPhone** : supprimer l'app efface tout.

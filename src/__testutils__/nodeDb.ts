@@ -29,5 +29,15 @@ export function createTestDb(): DbLike & { raw: DatabaseSync } {
       const r = raw.prepare(sql).run(...params);
       return { changes: Number(r.changes) };
     },
+    async withTransactionAsync(task: () => Promise<void>) {
+      raw.exec('BEGIN');
+      try {
+        await task();
+        raw.exec('COMMIT');
+      } catch (e) {
+        raw.exec('ROLLBACK');
+        throw e;
+      }
+    },
   };
 }

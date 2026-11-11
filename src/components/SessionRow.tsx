@@ -1,17 +1,41 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { SessionSummary } from '@/data/repositories/sessions';
 import { formatDateTime, formatDuration } from '@/domain/time';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, spacing } from '@/theme/tokens';
 
-export function SessionRow({ session, showVolume }: { session: SessionSummary; showVolume?: boolean }) {
+/**
+ * Ligne de session. Appui : réécoute. Appui long (si `onDelete`) : menu
+ * natif avec « Supprimer la session » (confirmation gérée par l'appelant).
+ */
+export function SessionRow({
+  session,
+  showVolume,
+  onDelete,
+}: {
+  session: SessionSummary;
+  showVolume?: boolean;
+  onDelete?: (s: SessionSummary) => void;
+}) {
   const { colors } = useTheme();
+  const openMenu = () => {
+    if (!onDelete) return;
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Réécouter', 'Supprimer la session…', 'Annuler'], destructiveButtonIndex: 1, cancelButtonIndex: 2 },
+      (i) => {
+        if (i === 0) router.push(`/session/${session.id}`);
+        if (i === 1) onDelete(session);
+      },
+    );
+  };
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityHint={onDelete ? 'Appui long pour supprimer' : undefined}
       onPress={() => router.push(`/session/${session.id}`)}
+      onLongPress={onDelete ? openMenu : undefined}
       style={({ pressed }) => [
         styles.row,
         { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },

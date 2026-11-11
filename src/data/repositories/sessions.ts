@@ -150,3 +150,26 @@ export async function getSession(db: DbLike, id: Id): Promise<SessionSummary | n
   const r = await db.getFirstAsync<Row>(`${SELECT} WHERE s.id = ?`, [id]);
   return r ? toSummary(r) : null;
 }
+
+/**
+ * Supprime UNE session terminée (ses segments et catégories partent en
+ * cascade ; l'index plein texte est mis à jour par trigger). Refuse une
+ * session en cours d'enregistrement. Le fichier audio est géré par l'appelant
+ * (features/deletion). Retourne true si la ligne a été supprimée.
+ */
+export async function deleteSessionRow(db: DbLike, id: Id): Promise<boolean> {
+  const res = await db.runAsync("DELETE FROM reading_sessions WHERE id = ? AND state IN ('completed','interrupted')", [id]);
+  return res.changes === 1;
+}
+
+/** Sessions d'un tome avec leur audio (pour la confirmation et la suppression). */
+export async function listSessionAudioForVolume(
+  db: DbLike,
+  volumeId: Id,
+): Promise<{ id: Id; audioPath: string | null; durationMs: number; state: SessionState }[]> {
+  const rows = await db.getAllAsync<{ id: string; audio_path: string | null; duration_ms: number; state: SessionState }>(
+    'SELECT id, audio_path, duration_ms, state FROM reading_sessions WHERE volume_id = ?',
+    [volumeId],
+  );
+  return rows.map((r) => ({ id: r.id, audioPath: r.audio_path, durationMs: r.duration_ms, state: r.state }));
+}
