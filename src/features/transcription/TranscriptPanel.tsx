@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/ui';
@@ -10,6 +10,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, spacing } from '@/theme/tokens';
 
 import { fileTranscriptionMessage } from './statusMessage';
+import type { CancelHandle } from './fileTranscriber';
 import { transcribeSessionAudio } from './transcribeSession';
 
 const STATUS_NOTE: Record<SessionSummary['transcriptStatus'], string | null> = {
@@ -40,6 +41,16 @@ export function TranscriptPanel({
   const [transcribing, setTranscribing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const hasText = session.transcriptText.trim().length > 0;
+  const running = useRef<CancelHandle | null>(null);
+  const mounted = useRef(true);
+  // Écran quitté : la transcription en cours est annulée, rien n'est écrit.
+  useEffect(
+    () => () => {
+      mounted.current = false;
+      running.current?.cancel();
+    },
+    [],
+  );
   const canTranscribe = !!session.audioPath && session.state !== 'recording' && session.state !== 'paused';
 
   const save = async () => {
@@ -69,14 +80,16 @@ export function TranscriptPanel({
     setTranscribing(true);
     setMessage('Transcription de l’enregistrement en cours… (gardez l’app ouverte)');
     try {
-      await transcribeSessionAudio(db, session, allowNetwork);
-      setMessage(null);
+      const { complete } = await transcribeSessionAudio(db, session, allowNetwork, (h) => (running.current = h));
+      if (!mounted.current) return;
+      setMessage(complete ? null : 'Transcription partielle : l’enregistrement n’a pas pu être transcrit en entier.');
       onChanged();
     } catch (e) {
       log.warn('transcript.file_failed', { kind: e instanceof Error ? e.name : 'unknown' });
-      setMessage(fileTranscriptionMessage(e));
+      if (mounted.current) setMessage(fileTranscriptionMessage(e));
     } finally {
-      setTranscribing(false);
+      running.current = null;
+      if (mounted.current) setTranscribing(false);
     }
   };
 

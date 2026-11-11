@@ -19,7 +19,7 @@ export function transcriptStatusMessage(t: LiveTranscriptState, allowNetwork: bo
         case 'permission':
           return 'Reconnaissance vocale refusée (Réglages › Lecture sucrée). L’audio est enregistré normalement.';
         case 'no-offline':
-          return 'Le français hors ligne n’est pas disponible sur cet iPhone. L’audio est enregistré ; la reconnaissance en ligne peut être autorisée dans Réglages.';
+          return 'Le français hors ligne n’est pas disponible ou pas vérifiable sur cet iPhone (langue de l’iPhone autre que le français). L’audio est enregistré ; la reconnaissance en ligne peut être autorisée dans Réglages.';
         case 'language':
           return 'Le français n’est pas pris en charge par la reconnaissance. L’audio est enregistré normalement.';
         default:
@@ -32,7 +32,7 @@ export function fileTranscriptionMessage(e: unknown): string {
   const code = e instanceof FileTranscriptionError ? e.code : 'unknown';
   switch (code) {
     case 'no-offline':
-      return 'Le français hors ligne n’est pas disponible sur cet iPhone. Vous pouvez autoriser la reconnaissance en ligne dans Réglages.';
+      return 'Le français hors ligne n’est pas disponible ou pas vérifiable sur cet iPhone (langue de l’iPhone autre que le français). Vous pouvez autoriser la reconnaissance en ligne dans Réglages.';
     case 'not-allowed':
       return 'La reconnaissance vocale est refusée (Réglages › Lecture sucrée).';
     case 'language-not-supported':
@@ -41,6 +41,10 @@ export function fileTranscriptionMessage(e: unknown): string {
       return 'Fichier audio introuvable.';
     case 'empty':
       return 'Aucune parole reconnue dans cet enregistrement.';
+    case 'cancelled':
+      return 'Transcription annulée. Rien n’a été modifié.';
+    case 'changed':
+      return 'Le texte a été modifié pendant la transcription : votre version est conservée, rien n’a été remplacé.';
     case 'timeout':
       return 'La transcription a pris trop de temps et a été arrêtée.';
     default:

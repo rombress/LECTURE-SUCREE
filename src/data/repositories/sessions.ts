@@ -233,20 +233,25 @@ export async function finalizeTranscript(
   );
 }
 
-/** Retranscription depuis l'audio, demandée explicitement : remplace le texte brut ET le texte affiché. */
+/**
+ * Retranscription depuis l'audio, demandée explicitement : remplace le texte
+ * brut ET le texte affiché. N'écrit QUE si le texte affiché n'a pas changé
+ * depuis la demande (`expectedText`) : une correction faite entre-temps n'est
+ * jamais écrasée (relecture du 2026-11-11, bug 6). Retourne false sinon.
+ */
 export async function replaceTranscriptFromAudio(
   db: DbLike,
   id: Id,
-  t: { raw: string; engine: string; locale: string },
+  t: { raw: string; engine: string; locale: string; complete: boolean; expectedText: string },
   nowIso: string,
-) {
+): Promise<boolean> {
   const res = await db.runAsync(
     `UPDATE reading_sessions
-        SET transcript_raw = ?, transcript_text = ?, transcript_status = 'complete', transcription_engine = ?, locale = ?, updated_at = ?
-      WHERE id = ? AND state IN ('completed','interrupted')`,
-    [t.raw, t.raw, t.engine, t.locale, nowIso, id],
+        SET transcript_raw = ?, transcript_text = ?, transcript_status = ?, transcription_engine = ?, locale = ?, updated_at = ?
+      WHERE id = ? AND state IN ('completed','interrupted') AND transcript_text = ?`,
+    [t.raw, t.raw, t.complete ? 'complete' : 'partial', t.engine, t.locale, nowIso, id, t.expectedText],
   );
-  if (res.changes !== 1) throw new Error('Session introuvable ou en cours');
+  return res.changes === 1;
 }
 
 /** Correction manuelle du texte. Ne touche ni l'audio, ni le texte brut du moteur. */

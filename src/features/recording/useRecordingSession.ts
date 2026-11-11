@@ -98,6 +98,23 @@ export function useRecordingSession(db: DbLike | null, volumeId: string, transcr
   // Le transcripteur est libéré si l'écran disparaît.
   useEffect(() => () => transcriber.current?.dispose(), []);
 
+  // La transcription SUIT l'état réel de l'enregistreur (relecture du
+  // 2026-11-11, bugs 2 et 3) : pause dès que le système interrompt
+  // l'enregistrement (appel, Siri…), reprise quand il tourne de nouveau
+  // (y compris quand expo-audio reprend seul, ou après une coupure de la
+  // seule transcription, ex. changement de route écran verrouillé).
+  const recorderRunning = phase === 'recording' && recState.isRecording;
+  const recorderInterrupted = phase === 'recording' && !recState.isRecording && recState.durationMillis > 0;
+  useEffect(() => {
+    const t = transcriber.current;
+    if (!t) return;
+    if (recorderInterrupted && t.currentStatus !== 'paused' && t.currentStatus !== 'unavailable') {
+      safely(() => t.pause());
+    } else if (recorderRunning && t.currentStatus === 'paused') {
+      safely(() => t.resume());
+    }
+  }, [recorderRunning, recorderInterrupted, transcript.status]);
+
   // Interruption système : le recorder ne tourne plus alors que nous pensions enregistrer.
   const interrupted = phase === 'recording' && !recState.isRecording && recState.durationMillis > 0;
 
@@ -141,7 +158,7 @@ export function useRecordingSession(db: DbLike | null, volumeId: string, transcr
           },
         });
         transcriber.current = t;
-        t.start();
+        void t.start().catch(() => log.warn('transcription.start_failed'));
       });
     },
     [db, transcription.allowNetwork],
@@ -229,10 +246,13 @@ export function useRecordingSession(db: DbLike | null, volumeId: string, transcr
     if (!db || !s || (phase !== 'recording' && phase !== 'paused')) return;
     setPhase('stopping');
     const durationMs = recorder.getStatus().durationMillis;
-    // La transcription termine en parallèle (dernier énoncé, ≤ 2,5 s) ; l'audio passe d'abord.
-    const textPromise: Promise<string> = transcriber.current ? transcriber.current.stop().catch(() => transcriber.current?.text ?? '') : Promise.resolve('');
+    let textPromise: Promise<string> = Promise.resolve('');
     try {
+      // L'AUDIO D'ABORD : l'enregistreur est arrêté et finalisé avant que la
+      // transcription ne termine son dernier énoncé (≤ 2,5 s).
       await recorder.stop();
+      const t = transcriber.current;
+      if (t) textPromise = t.stop().catch(() => t.text);
       const audio = await settleAudio(deviceAudioOps, s.id, s.startedAt, durationMs);
       await finalizeSession(db, s.id, { endedAt: new Date().toISOString(), durationMs, state: 'completed', audio });
       log.info('recording.completed', { durationMs, hasAudio: audio !== null });

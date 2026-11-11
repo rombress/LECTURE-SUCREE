@@ -78,8 +78,31 @@ describe('persistance de la transcription', () => {
   it('retranscription depuis l’audio (demande explicite) : remplace texte et brut, audio intact', async () => {
     const db = await setup();
     await finalizeSession(db, 's1', { endedAt: T0, durationMs: 1, state: 'completed', audio });
-    await replaceTranscriptFromAudio(db, 's1', { raw: 'Nouvelle transcription.', engine: 'ios-sfspeech-ondevice', locale: 'fr-FR' }, T0);
+    const ok = await replaceTranscriptFromAudio(
+      db,
+      's1',
+      { raw: 'Nouvelle transcription.', engine: 'ios-sfspeech-ondevice', locale: 'fr-FR', complete: true, expectedText: '' },
+      T0,
+    );
+    expect(ok).toBe(true);
     expect(await getSession(db, 's1')).toMatchObject({ transcriptText: 'Nouvelle transcription.', transcriptStatus: 'complete', audioPath: audio.path });
+  });
+
+  it('BUG 5 — retranscription partielle enregistrée comme « partial »', async () => {
+    const db = await setup();
+    await finalizeSession(db, 's1', { endedAt: T0, durationMs: 1, state: 'completed', audio });
+    await replaceTranscriptFromAudio(db, 's1', { raw: 'Début seulement', engine: 'e', locale: 'fr-FR', complete: false, expectedText: '' }, T0);
+    expect((await getSession(db, 's1'))?.transcriptStatus).toBe('partial');
+  });
+
+  it('BUG 6 — une correction faite PENDANT la retranscription n’est pas écrasée', async () => {
+    const db = await setup();
+    await finalizeSession(db, 's1', { endedAt: T0, durationMs: 1, state: 'completed', audio });
+    // La retranscription a été demandée alors que le texte était vide…
+    await updateTranscriptText(db, 's1', 'Corrigé entre-temps', T0); // … puis l'utilisateur corrige
+    const ok = await replaceTranscriptFromAudio(db, 's1', { raw: 'Sortie moteur', engine: 'e', locale: 'fr-FR', complete: true, expectedText: '' }, T0);
+    expect(ok).toBe(false);
+    expect((await getSession(db, 's1'))?.transcriptText).toBe('Corrigé entre-temps');
   });
 
   it('le brouillon n’est plus modifiable après la fin de la session', async () => {

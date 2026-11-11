@@ -11,6 +11,8 @@ export const LOCALE = 'fr-FR';
 export type EngineErrorCode = string;
 
 export interface SpeechEngineEvents {
+  /** La tâche native a réellement démarré (événement `start` du module). */
+  start: () => void;
   result: (e: { text: string; isFinal: boolean }) => void;
   error: (e: { code: EngineErrorCode }) => void;
   end: () => void;
@@ -67,4 +69,16 @@ export function engineId(allowNetwork: boolean): string {
 /** Délai maximal : le moteur lit le fichier plus vite que le temps réel ; marge large. */
 export function fileTimeoutMs(durationMs: number): number {
   return Math.max(60_000, durationMs * 2 + 30_000);
+}
+
+/**
+ * Garde-fou de CONFIDENTIALITÉ (relecture du 2026-11-11, bug 4, vérifié dans
+ * le Swift du module) : `supportsOnDeviceRecognition()` teste la langue de
+ * l'iPhone, pas le français, et le module retire SILENCIEUSEMENT la
+ * contrainte « sur l'appareil » si le français ne la prend pas en charge.
+ * On ne peut donc garantir le hors-ligne en français que si l'iPhone est
+ * lui-même réglé en français. Sinon, sans autorisation du réseau, on refuse.
+ */
+export function onDeviceFrenchVerifiable(deviceLocale: string): boolean {
+  return /^fr([-_]|$)/i.test(deviceLocale.trim());
 }

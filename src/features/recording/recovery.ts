@@ -32,12 +32,13 @@ export async function recoverUnfinishedSessions(db: DbLike, ops: AudioFileOps, n
   for (const s of pending) {
     try {
       const audio = await settleAudio(ops, s.id, s.startedAt, s.durationMs);
-      await finalizeSession(db, s.id, { endedAt: nowIso, durationMs: s.durationMs, state: 'interrupted', audio });
       // Transcription partielle : brouillon (texte en cours compris), sinon segments validés.
       const draft = pickRecoveredTranscript(s.transcriptDraft, await listTranscriptSegments(db, s.id));
-      if (draft) {
-        await finalizeTranscript(db, s.id, { raw: draft, status: 'partial', engine: null, locale: null }, nowIso);
-      }
+      // Session ET texte dans une même transaction : jamais une session close avec un texte perdu.
+      await db.withTransactionAsync(async () => {
+        await finalizeSession(db, s.id, { endedAt: nowIso, durationMs: s.durationMs, state: 'interrupted', audio });
+        if (draft) await finalizeTranscript(db, s.id, { raw: draft, status: 'partial', engine: null, locale: null }, nowIso);
+      });
       recovered++;
       if (audio) withAudio++;
     } catch (e) {

@@ -8,7 +8,9 @@
  *    texte suivant repart de zéro ;
  *  - fin de tâche : l'éventuel texte intermédiaire restant est validé.
  * Un résultat final de fin de tâche peut RÉPÉTER du texte déjà validé dans
- * cette tâche : il est dédoublonné.
+ * cette tâche : il est dédoublonné. Une répétition exacte du dernier énoncé
+ * n'est écartée que si elle arrive moins de REPEAT_WINDOW_MS après lui (une
+ * vraie répétition volontaire, « Oui. … Oui. », est conservée).
  *
  * Pur et déterministe : testé sans appareil.
  */
@@ -17,14 +19,20 @@ export function normalizeSpaces(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+export const REPEAT_WINDOW_MS = 2000;
+
 export class TranscriptAccumulator {
+  private lastCommitAt = -Infinity;
   /** Énoncés validés (toutes tâches confondues), dans l'ordre. */
   private committed: string[] = [];
   /** Énoncés validés dans la tâche de reconnaissance courante (dédoublonnage). */
   private taskCommitted: string[] = [];
   private interim = '';
 
-  constructor(initialSegments: string[] = []) {
+  constructor(
+    initialSegments: string[] = [],
+    private readonly now: () => number = () => Date.now(),
+  ) {
     this.committed = initialSegments.map(normalizeSpaces).filter(Boolean);
   }
 
@@ -40,7 +48,8 @@ export class TranscriptAccumulator {
     const taskJoined = this.taskCommitted.join(' ');
     const last = this.taskCommitted[this.taskCommitted.length - 1];
     let toAdd = text;
-    if (text === last || text === taskJoined) return []; // répétition
+    const recent = this.now() - this.lastCommitAt < REPEAT_WINDOW_MS;
+    if (recent && (text === last || text === taskJoined)) return []; // écho de fin de tâche
     if (taskJoined && text.startsWith(`${taskJoined} `)) toAdd = text.slice(taskJoined.length + 1); // cumul de la tâche
     return this.commit(toAdd);
   }
@@ -59,6 +68,7 @@ export class TranscriptAccumulator {
     if (!t) return [];
     this.committed.push(t);
     this.taskCommitted.push(t);
+    this.lastCommitAt = this.now();
     return [t];
   }
 

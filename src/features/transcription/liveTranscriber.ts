@@ -5,19 +5,26 @@
  *  - Indépendante de l'enregistrement audio : aucune de ses erreurs ne
  *    remonte à l'enregistreur. Au pire, la transcription s'arrête et l'audio
  *    continue (il pourra être transcrit plus tard depuis le fichier).
- *  - iOS termine régulièrement les tâches de reconnaissance (silence,
- *    limites système) : tant que l'utilisateur enregistre, une nouvelle
- *    tâche est relancée automatiquement, avec une protection anti-boucle.
+ *  - Le moteur natif est partagé et ses événements ne sont pas étiquetés :
+ *      · une seule utilisation à la fois (engineLock) ;
+ *      · une tâche n'est considérée « en cours » qu'après l'événement natif
+ *        `start` ; un arrêt demandé pendant le démarrage est DIFFÉRÉ jusqu'à
+ *        ce `start` (sinon la tâche native démarrerait après l'arrêt et
+ *        garderait le micro — relecture du 2026-11-11, bug 1) ;
+ *      · les événements reçus hors tâche sont ignorés.
+ *  - iOS termine régulièrement les tâches (silence, limites) : tant que
+ *    l'utilisateur enregistre, une nouvelle tâche est relancée. Seuls les
+ *    ÉCHECS RAPIDES (tâche jamais démarrée ou terminée en < 1,5 s) comptent
+ *    pour l'anti-boucle : un long silence de lecture ne coupe pas la
+ *    transcription.
  *  - Erreurs bloquantes (permission refusée, langue non prise en charge,
- *    service indisponible) : la transcription passe « indisponible » et
- *    n'insiste pas.
- *  - Chaque énoncé validé est remis à `onCommit` pour être sauvegardé
- *    immédiatement (ajout seul).
+ *    service indisponible) : « indisponible », sans insister.
  */
+import type { ExpoSpeechRecognitionOptions } from 'expo-speech-recognition';
+
 import { TranscriptAccumulator } from './accumulator';
 import type { SpeechEngine } from './engine';
-
-import type { ExpoSpeechRecognitionOptions } from 'expo-speech-recognition';
+import { acquireEngine, type EngineHolder } from './engineLock';
 
 export type TranscriberStatus = 'idle' | 'listening' | 'restarting' | 'paused' | 'stopped' | 'unavailable';
 
@@ -36,21 +43,31 @@ const FATAL: Record<string, UnavailableReason> = {
 };
 
 export const RESTART_DELAY_MS = 400;
-/** Au-delà de MAX_RESTARTS redémarrages sans aucun texte reconnu en RESTART_WINDOW_MS : on abandonne. */
-export const MAX_RESTARTS = 6;
+/** Au-delà de MAX_RAPID_FAILURES échecs rapides consécutifs en RESTART_WINDOW_MS : on abandonne. */
+export const MAX_RAPID_FAILURES = 6;
 export const RESTART_WINDOW_MS = 60_000;
+/** Une tâche plus courte est un « échec rapide ». */
+export const RAPID_FAILURE_MS = 1500;
 export const STOP_TIMEOUT_MS = 2500;
+
+type Phase = 'idle' | 'starting' | 'running';
 
 export class LiveTranscriber {
   private readonly acc: TranscriptAccumulator;
   private wantRunning = false;
-  private engineActive = false;
+  private phase: Phase = 'idle';
+  /** Arrêt demandé pendant le démarrage : envoyé au moteur dès l'événement `start`. */
+  private stopWhenStarted = false;
+  private taskStartedAt = 0;
   private status: TranscriberStatus = 'idle';
+  private unavailableReason: UnavailableReason | undefined;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
-  private restarts: number[] = [];
+  private rapidFailures: number[] = [];
   private unsubscribers: (() => void)[] = [];
-  private stopWaiters: (() => void)[] = [];
+  private endWaiters: (() => void)[] = [];
+  private release: (() => void) | null = null;
   private disposed = false;
+  private readonly holder: EngineHolder;
 
   constructor(
     private readonly engine: SpeechEngine,
@@ -59,21 +76,33 @@ export class LiveTranscriber {
     private readonly now: () => number = () => Date.now(),
     initialSegments: string[] = [],
   ) {
-    this.acc = new TranscriptAccumulator(initialSegments);
+    this.acc = new TranscriptAccumulator(initialSegments, now);
+    // Si une autre utilisation (fichier) prend le moteur, on s'arrête proprement.
+    this.holder = { cancel: () => this.stop().then(() => undefined) };
     this.unsubscribers.push(
+      engine.on('start', () => {
+        if (this.phase !== 'starting') return;
+        this.phase = 'running';
+        this.taskStartedAt = this.now();
+        if (this.stopWhenStarted || this.disposed) {
+          this.stopWhenStarted = false;
+          this.safe(() => (this.disposed ? this.engine.abort() : this.engine.stop()));
+        }
+      }),
       engine.on('result', ({ text, isFinal }) => {
-        if (!this.engineActive) return;
-        if (text.trim()) this.restarts = []; // du texte arrive : la session est saine
+        if (this.phase === 'idle') return;
         for (const s of this.acc.onResult(text, isFinal)) this.cb.onCommit(s);
         this.cb.onChange(this.acc.fullText);
       }),
       engine.on('error', ({ code }) => {
+        if (this.phase === 'idle') return;
         const fatal = FATAL[code];
         if (fatal) {
           this.wantRunning = false;
           this.setStatus('unavailable', fatal);
         } else if (code === 'interrupted') {
-          // Appel, Siri, alarme : l'enregistreur se met aussi en pause. On attend resume().
+          // Appel, Siri, alarme, changement de route en arrière-plan : on attend
+          // que l'enregistreur tourne de nouveau (resume() appelé par le hook).
           this.wantRunning = false;
           this.setStatus('paused');
         }
@@ -91,9 +120,16 @@ export class LiveTranscriber {
     return this.status;
   }
 
-  start(): void {
-    if (this.disposed || this.status === 'unavailable') return;
+  get reason(): UnavailableReason | undefined {
+    return this.unavailableReason;
+  }
+
+  /** Démarre (prend le verrou du moteur, en arrêtant toute autre utilisation). */
+  async start(): Promise<void> {
+    if (this.disposed || this.isBlocked()) return;
     this.wantRunning = true;
+    this.release = await acquireEngine(this.holder);
+    if (this.disposed || !this.wantRunning) return;
     this.launch();
   }
 
@@ -102,14 +138,16 @@ export class LiveTranscriber {
     if (this.status === 'unavailable') return;
     this.wantRunning = false;
     this.clearRestart();
-    if (this.engineActive) this.engine.stop();
+    this.requestEngineStop();
     this.setStatus('paused');
   }
 
+  /** Reprise. Après un abandon pour boucle, une reprise manuelle réessaie. */
   resume(): void {
-    if (this.disposed || this.status === 'unavailable') return;
+    if (this.disposed || this.isBlocked()) return;
+    if (this.status === 'unavailable' && this.unavailableReason === 'loop') this.rapidFailures = [];
     this.wantRunning = true;
-    if (!this.engineActive) this.launch();
+    if (this.phase === 'idle') this.launch();
   }
 
   /**
@@ -119,76 +157,110 @@ export class LiveTranscriber {
   async stop(): Promise<string> {
     this.wantRunning = false;
     this.clearRestart();
-    if (this.engineActive) {
-      const ended = new Promise<void>((resolve) => this.stopWaiters.push(resolve));
-      this.engine.stop();
-      await Promise.race([ended, new Promise<void>((r) => setTimeout(r, STOP_TIMEOUT_MS))]);
-      if (this.engineActive) {
+    if (this.phase !== 'idle') {
+      const ended = new Promise<void>((resolve) => this.endWaiters.push(resolve));
+      this.requestEngineStop();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([ended, new Promise<void>((r) => (timer = setTimeout(r, STOP_TIMEOUT_MS)))]);
+      clearTimeout(timer);
+      // (re-lecture : `phase` a pu changer pendant l'attente)
+      if ((this.phase as Phase) !== 'idle') {
         // Le moteur n'a pas répondu à temps : on coupe net, le texte déjà reçu est conservé.
-        this.engineActive = false;
-        try {
-          this.engine.abort();
-        } catch {
-          /* ignoré */
-        }
+        this.phase = 'idle';
+        this.safe(() => this.engine.abort());
       }
     }
     for (const s of this.acc.onTaskEnd()) this.cb.onCommit(s);
     if (this.status !== 'unavailable') this.setStatus('stopped');
+    this.releaseEngine();
     return this.acc.fullText;
   }
 
+  /**
+   * Libération (démontage de l'écran). Si une tâche est en cours de
+   * démarrage, elle sera interrompue dès son `start` (écouteurs gardés
+   * jusque-là), pour ne jamais laisser une tâche native orpheline.
+   */
   dispose(): void {
     this.disposed = true;
     this.wantRunning = false;
     this.clearRestart();
-    if (this.engineActive) {
-      try {
-        this.engine.abort();
-      } catch {
-        /* ignoré */
-      }
-      this.engineActive = false;
+    if (this.phase === 'running') {
+      this.safe(() => this.engine.abort());
+      this.phase = 'idle';
     }
-    this.unsubscribers.forEach((u) => u());
-    this.unsubscribers = [];
+    if (this.phase === 'idle') this.detach();
+    // phase 'starting' : le gestionnaire `start` appellera abort(), puis `end` détachera.
+    this.releaseEngine();
+  }
+
+  private isBlocked(): boolean {
+    return this.status === 'unavailable' && this.unavailableReason !== 'loop';
+  }
+
+  private requestEngineStop() {
+    if (this.phase === 'running') this.safe(() => this.engine.stop());
+    else if (this.phase === 'starting') this.stopWhenStarted = true;
   }
 
   private launch() {
     this.clearRestart();
+    this.stopWhenStarted = false;
     try {
-      this.engineActive = true;
+      this.phase = 'starting';
+      this.taskStartedAt = this.now();
       this.engine.start(this.options);
       this.setStatus('listening');
     } catch {
-      this.engineActive = false;
+      this.phase = 'idle';
       this.wantRunning = false;
       this.setStatus('unavailable', 'unknown');
     }
   }
 
   private handleEnd() {
-    const wasActive = this.engineActive;
-    this.engineActive = false;
+    if (this.phase === 'idle') return; // fin d'une tâche qui n'est pas la nôtre
+    const neverStarted = this.phase === 'starting';
+    const lasted = this.now() - this.taskStartedAt;
+    this.phase = 'idle';
+    this.stopWhenStarted = false;
     for (const s of this.acc.onTaskEnd()) this.cb.onCommit(s);
     this.cb.onChange(this.acc.fullText);
-    this.stopWaiters.splice(0).forEach((r) => r());
-    if (!wasActive || !this.wantRunning || this.disposed) return;
-
-    // Relance automatique, avec protection anti-boucle.
-    const t = this.now();
-    this.restarts = this.restarts.filter((x) => t - x < RESTART_WINDOW_MS);
-    this.restarts.push(t);
-    if (this.restarts.length > MAX_RESTARTS) {
-      this.wantRunning = false;
-      this.setStatus('unavailable', 'loop');
+    this.endWaiters.splice(0).forEach((r) => r());
+    if (this.disposed) {
+      this.detach();
       return;
+    }
+    if (!this.wantRunning) return;
+
+    // Relance automatique. Seuls les échecs rapides comptent pour l'anti-boucle.
+    const t = this.now();
+    if (neverStarted || lasted < RAPID_FAILURE_MS) {
+      this.rapidFailures = this.rapidFailures.filter((x) => t - x < RESTART_WINDOW_MS);
+      this.rapidFailures.push(t);
+      if (this.rapidFailures.length > MAX_RAPID_FAILURES) {
+        this.wantRunning = false;
+        this.setStatus('unavailable', 'loop');
+        return;
+      }
+    } else {
+      this.rapidFailures = [];
     }
     this.setStatus('restarting');
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
-      if (this.wantRunning && !this.disposed) this.launch();
+      if (this.wantRunning && !this.disposed && this.phase === 'idle') this.launch();
     }, RESTART_DELAY_MS);
+  }
+
+  private detach() {
+    this.unsubscribers.forEach((u) => u());
+    this.unsubscribers = [];
+  }
+
+  private releaseEngine() {
+    this.release?.();
+    this.release = null;
   }
 
   private clearRestart() {
@@ -196,8 +268,17 @@ export class LiveTranscriber {
     this.restartTimer = null;
   }
 
+  private safe(fn: () => void) {
+    try {
+      fn();
+    } catch {
+      /* ignoré : la transcription ne doit jamais faire échouer l'enregistrement */
+    }
+  }
+
   private setStatus(s: TranscriberStatus, reason?: UnavailableReason) {
     this.status = s;
+    this.unavailableReason = s === 'unavailable' ? reason : undefined;
     this.cb.onStatus(s, reason);
   }
 }
