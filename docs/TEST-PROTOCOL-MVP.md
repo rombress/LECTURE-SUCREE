@@ -86,4 +86,28 @@ Utiliser **uniquement des livres et sessions de test**. Installer par-dessus la 
 | G8 | Fermer complètement l'app, rouvrir | Les suppressions persistent ; rien d'inattendu ne réapparaît |
 | G9 | Non-régression : enregistrer, réécouter, exporter une session ; changer une couverture | Fonctionne comme en 0.2.0 |
 
+## H. Transcription française en direct (version 0.3.0, build 4)
+
+**Rien de cette section n'a encore été testé sur iPhone.** Utiliser des **livres de test**. Installer par-dessus la version actuelle (H0 = non-régression des données).
+Ordre conseillé : H1 à H3 d'abord. Ce sont les tests qui disent si l'audio et la transcription cohabitent.
+
+| # | Test | Attendu | Si échec |
+|---|---|---|---|
+| H0 | Après la mise à jour, ouvrir l'app | Livres, séries, couvertures et sessions intacts | Arrêter, ne rien supprimer, me prévenir |
+| H1 | **Réglages → Diagnostic technique** | Relever : « Reconnaissance vocale native » (disponible ? **sur l'appareil ?**) et « Langue fr-FR » (prise en charge ? installée hors ligne ?) | Me transmettre la capture |
+| H2 | Nouvelle session, Transcription en direct **activée**, parler 30 s, Terminer | 1re fois : iOS demande l'autorisation de reconnaissance vocale. Le texte apparaît **pendant** la dictée ; message « ● Transcription en direct, sur l'iPhone » | Noter le message affiché sous la zone de texte |
+| H3 | Réécouter la session de H2 + « Vérifier l'intégrité » | **Audio complet et audible** (aussi bon qu'en 0.2.x), ✓ intact. **C'est le test le plus important** : la transcription ne doit pas dégrader l'audio | Si l'audio est silencieux ou coupé : désactiver la transcription (interrupteur) et me prévenir |
+| H4 | Écran de session après H2 | Le texte de la dictée est affiché | |
+| H5 | « Modifier le texte » → corriger un mot → Enregistrer, puis réécouter et vérifier l'intégrité | Correction conservée ; audio inchangé (✓ intact) | |
+| H6 | Dictée de **5 min** avec des pauses de 5 à 10 s | Le texte continue après chaque pause (pas d'arrêt définitif ni de doublons de phrases) | Noter à quel moment le texte s'arrête |
+| H7 | **Mode avion**, nouvelle session de 1 min | Le texte apparaît quand même (vrai hors-ligne) | Si « français hors ligne indisponible » : relever le message ; l'audio doit être enregistré |
+| H8 | **Écran verrouillé** 1 min pendant la dictée | L'audio est complet (H3). Le texte dicté écran verrouillé est présent **ou** manquant : noter lequel | Le texte manquant peut être récupéré avec « Retranscrire depuis l'audio » |
+| H9 | **Appel ou alarme** pendant la dictée, puis Reprendre | L'audio reprend ; le texte reprend après « Reprendre » | |
+| H10 | Pause 20 s, puis Reprendre | Le texte continue ; pas de doublon | |
+| H11 | Session avec l'interrupteur **désactivé** | Comme en 0.2.x : audio seul, pas de demande de reconnaissance | |
+| H12 | Sur la session de H11 : « Transcrire l'audio » | Le texte de l'enregistrement apparaît après quelques secondes | Noter le message d'erreur |
+| H13 | **Arrêt forcé** de l'app pendant une dictée transcrite, puis relance | Session « interrompue », audio conservé, **texte partiel conservé** | |
+| H14 | Recherche dans Archives | (Recherche non encore disponible dans l'interface : test reporté) | — |
+| H15 | Refuser la reconnaissance vocale (Réglages iOS › Lecture sucrée), puis nouvelle session | Message « Reconnaissance vocale refusée… L'audio est enregistré normalement. » ; l'audio est bien enregistré | |
+
 **Tant que E3 n'est pas validé, aucune donnée n'est sauvegardée hors de l'iPhone** : supprimer l'app efface tout.

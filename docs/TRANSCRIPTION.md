@@ -2,6 +2,20 @@
 
 > Règle : aucune promesse de transcription gratuite, illimitée ou hors ligne **sans preuve sur appareil**. Ce document distingue ce qui est **documenté** par les projets de ce qui est **vérifié** ici. Au 2026-11-11, rien n'est encore vérifié sur appareil : c'est l'objet du lot 1.
 
+## État au 2026-11-11 (version 0.3.0) : implémenté, non testé sur iPhone
+
+- **Choix** : `SFSpeechRecognizer` via expo-speech-recognition (A1 ci-dessous), **en parallèle** de l'enregistrement expo-audio. Sur l'appareil par défaut, français, continu, avec ponctuation. Voir D31 à D36 dans [DECISIONS.md](DECISIONS.md).
+- **Pourquoi pas encore `SpeechAnalyzer`** : il exige un module Swift que l'on ne peut compiler qu'en poussant le code. Il reste le candidat n° 1 si les essais (protocole H) montrent des limites, par exemple des coupures ou l'écran verrouillé.
+- **Fonctionnalités** :
+  - texte affiché en direct ;
+  - sauvegarde immédiate de chaque énoncé et d'un brouillon toutes les 5 s ;
+  - relance automatique quand iOS termine une tâche ;
+  - pause, reprise et interruption ;
+  - correction du texte ;
+  - transcription ou retranscription depuis l'audio ;
+  - préférences : direct par défaut, reconnaissance en ligne interdite par défaut.
+- **Risque principal à vérifier (H3)** : la capture simultanée du micro par AVAudioRecorder et AVAudioEngine. Le moteur reconfigure la session audio à chaque relance de tâche, avec des valeurs identiques à celles d'expo-audio. Ce point est soumis à relecture externe dans [reviews/2026-11-11-transcription-en-direct.md](reviews/2026-11-11-transcription-en-direct.md).
+
 ## V1 iPhone : les candidats natifs Apple (mise à jour du 2026-11-11)
 
 | | A1. `SFSpeechRecognizer` (via expo-speech-recognition 58.0.1) | A2. `SpeechAnalyzer` + `SpeechTranscriber` (iOS 26) |

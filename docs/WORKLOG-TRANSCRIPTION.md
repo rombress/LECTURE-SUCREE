@@ -37,6 +37,15 @@
   - corriger ne touche ni l'audio ni le texte brut ;
   - recherche plein texte à jour ;
   - après un plantage, le texte le plus complet entre brouillon et segments est conservé.
-- [ ] Intégration à l'enregistrement + récupération après plantage
-- [ ] Écrans : texte en direct, session (affichage, correction, transcription différée), réglages
-- [ ] Vérification complète, documentation, message de relecture
+- [x] Intégration à l'enregistrement (14 h 15) :
+  - la permission de reconnaissance et la disponibilité sont vérifiées **avant** de capter ; un refus n'empêche jamais l'enregistrement ;
+  - la transcription démarre **après** `recorder.record()` ;
+  - à l'arrêt, l'audio est finalisé **d'abord**, puis la transcription (une erreur de transcription ne remet pas en cause la session audio) ;
+  - toutes les actions de transcription sont isolées par `safely()`.
+- [x] Écrans (14 h 20) :
+  - **enregistrement** : interrupteur « Transcription en direct », texte qui défile pendant la dictée, message d'état ;
+  - **session** : texte, « Modifier le texte », « Transcrire l'audio » / « Retranscrire depuis l'audio » (avec confirmation) ;
+  - **Réglages** : transcription en direct (activée par défaut), reconnaissance en ligne (désactivée par défaut).
+- [x] Vérification complète (14 h 21) : version 0.3.0 (build 4) ; `verify` ✅ (96 Jest + 20 Node) ; `expo-doctor` 20/20 ; bundle iOS 3 Mo
+- [x] Documentation : protocole H (16 tests sur iPhone), décisions D31 à D36, message de relecture pour ChatGPT
+- [ ] Relecture indépendante (agent séparé) en cours
