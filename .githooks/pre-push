@@ -1,0 +1,8 @@
+#!/bin/sh
+# Lecture sucrée — avant tout push : contrôle des fichiers suivis ET de tout
+# l'historique (un secret supprimé dans un commit récent reste dans l'historique).
+node scripts/privacy-check.mjs --tracked --history || {
+  echo ""
+  echo "PUSH BLOQUÉ par scripts/privacy-check.mjs (voir messages ci-dessus)."
+  exit 1
+}

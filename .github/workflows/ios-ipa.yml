@@ -1,0 +1,166 @@
+# Lecture sucrée — compilation iOS NON SIGNÉE + empaquetage IPA.
+#
+# Reprend la chaîne validée par le prototype READLOG-iOS-TEST (2026-11-11) :
+# runner macos-26 (Xcode >= 26.4 requis par Expo SDK 58), prebuild, pod
+# install, xcodebuild Release iphoneos sans signature, Payload/ -> .ipa.
+#
+# L'IPA est re-signé SUR VOTRE PC par AltServer avec un identifiant Apple
+# gratuit (secondaire). Aucun secret, identifiant Apple, certificat ni profil
+# n'est utilisé ici. Runner standard : gratuit en dépôt PUBLIC uniquement.
+name: ios-ipa
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check Xcode version (>= 26.4 requis par Expo SDK 58)
+        run: |
+          xcodebuild -version
+          XCODE_VERSION=$(xcodebuild -version | awk '/^Xcode/ {print $2}')
+          MAJOR=$(echo "$XCODE_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$XCODE_VERSION" | cut -d. -f2)
+          MINOR=${MINOR:-0}
+          if [ "$MAJOR" -lt 26 ] || { [ "$MAJOR" -eq 26 ] && [ "$MINOR" -lt 4 ]; }; then
+            echo "::error::Xcode $XCODE_VERSION < 26.4 — incompatible avec Expo SDK 58"
+            exit 1
+          fi
+          pod --version
+
+      - name: Contrôle de confidentialité
+        run: node scripts/privacy-check.mjs --tracked
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck + tests
+        run: npm run typecheck && npm test
+
+      - name: Generate native iOS project (expo prebuild)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Detect project name
+        id: detect
+        run: |
+          PROJ=$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)
+          NAME=$(basename "$PROJ" .xcodeproj)
+          if [ -z "$NAME" ]; then echo "::error::Projet iOS introuvable"; ls -la ios; exit 1; fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Projet iOS détecté : $NAME"
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install
+
+      - name: Build (Release, iphoneos, unsigned)
+        env:
+          NAME: ${{ steps.detect.outputs.name }}
+        run: |
+          mkdir -p build
+          if ! xcodebuild \
+            -workspace "ios/$NAME.xcworkspace" \
+            -scheme "$NAME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build > build/xcodebuild.log 2>&1; then
+            echo "::error::xcodebuild a échoué — extrait ci-dessous (log complet en artefact)"
+            grep -E 'error:' build/xcodebuild.log | head -n 50 || true
+            tail -n 150 build/xcodebuild.log
+            exit 1
+          fi
+          grep -E '\*\* BUILD' build/xcodebuild.log
+
+      - name: Package IPA
+        id: package
+        run: |
+          APP_PATH=$(find build/DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$APP_PATH" ]; then echo "::error::Aucun .app produit"; exit 1; fi
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")
+          BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")
+          rm -rf build/ipa && mkdir -p build/ipa/Payload
+          cp -R "$APP_PATH" build/ipa/Payload/
+          IPA_NAME="lecture-sucree-${VERSION}-${BUILD}-unsigned.ipa"
+          (cd build/ipa && zip -qry "../$IPA_NAME" Payload)
+          echo "ipa=build/$IPA_NAME" >> "$GITHUB_OUTPUT"
+          echo "app=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect IPA (structure, bundle JS, arch, permissions, entitlements)
+        env:
+          APP_PATH: ${{ steps.package.outputs.app }}
+          IPA: ${{ steps.package.outputs.ipa }}
+        run: |
+          APP_DIR=$(basename "$APP_PATH")
+          BIN=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Info.plist")
+          echo "--- Structure"
+          unzip -l "$IPA" | grep -q "Payload/$APP_DIR/Info.plist" || { echo "::error::Structure IPA invalide"; exit 1; }
+          echo "--- Bundle JS embarqué"
+          test -f "$APP_PATH/main.jsbundle" || { echo "::error::main.jsbundle absent"; exit 1; }
+          ls -lh "$APP_PATH/main.jsbundle"
+          echo "--- Architecture (attendu : arm64)"
+          lipo -info "$APP_PATH/$BIN" | tee /dev/stderr | grep -q arm64 || { echo "::error::binaire non arm64"; exit 1; }
+          echo "--- Identité"
+          for KEY in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion MinimumOSVersion; do
+            echo "$KEY = $(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PATH/Info.plist" 2>/dev/null || echo '(absent)')"
+          done
+          echo "--- Permissions attendues : micro, reconnaissance vocale, audio en arrière-plan"
+          plutil -p "$APP_PATH/Info.plist" | grep -E 'UsageDescription|UIBackgroundModes' -A2 || true
+          for KEY in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription; do
+            /usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PATH/Info.plist" >/dev/null || { echo "::error::$KEY manquant"; exit 1; }
+          done
+          echo "--- Entitlements (un compte Apple GRATUIT ne supporte pas push, iCloud, associated domains…)"
+          ENTS=$(find ios -name '*.entitlements')
+          for E in $ENTS; do echo "$E"; plutil -p "$E"; done
+          if [ -n "$ENTS" ] && cat $ENTS | grep -E 'aps-environment|icloud|associated-domains|applesignin|healthkit' ; then
+            echo "::error::Entitlement incompatible avec un compte Apple gratuit détecté"
+            exit 1
+          fi
+          echo "--- Signature (attendu : non signé)"
+          codesign -dv "$APP_PATH" 2>&1 || true
+          echo "--- Taille et SHA-256"
+          ls -lh "$IPA"
+          shasum -a 256 "$IPA" | tee "$IPA.sha256"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lecture-sucree-unsigned-ipa
+          path: |
+            ${{ steps.package.outputs.ipa }}
+            ${{ steps.package.outputs.ipa }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7

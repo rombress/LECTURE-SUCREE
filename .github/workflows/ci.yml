@@ -1,0 +1,57 @@
+# Lecture sucrée — vérifications à chaque push / PR (runner Linux standard,
+# gratuit en dépôt public). Aucun secret utilisé.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout (historique complet pour le contrôle --history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Contrôle de confidentialité (fichiers suivis + historique)
+        # Optionnel : un secret PRIVACY_DENYLIST (termes séparés par des virgules)
+        # ajoute vos termes personnels sans les publier.
+        env:
+          PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+        run: node scripts/privacy-check.mjs --tracked --history
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests (unitaires + schéma SQLite + confidentialité)
+        run: npm test
+
+      - name: Expo doctor
+        run: npm run doctor
+
+      - name: Bundles JS de production (Android + iOS)
+        run: npm run bundle:check

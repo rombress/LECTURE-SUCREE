@@ -1,0 +1,8 @@
+#!/bin/sh
+# Lecture sucrée — bloque tout commit contenant données personnelles ou secrets.
+# Ne jamais contourner avec --no-verify. Voir docs/SECURITY.md.
+node scripts/privacy-check.mjs --staged || {
+  echo ""
+  echo "COMMIT BLOQUÉ par scripts/privacy-check.mjs (voir messages ci-dessus)."
+  exit 1
+}

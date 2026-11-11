@@ -1,0 +1,129 @@
+# =============================================================================
+# Lecture sucrée — .gitignore STRICT (dépôt PUBLIC)
+#
+# Rappel : .gitignore n'empêche PAS la publication d'un fichier DÉJÀ suivi.
+# Le contrôle réel est fait par scripts/privacy-check.mjs (hooks + CI), qui
+# vérifie aussi les fichiers suivis et l'historique. Voir docs/SECURITY.md.
+# =============================================================================
+
+# --- Dépendances / outils --------------------------------------------------
+node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+*.tsbuildinfo
+coverage/
+.eslintcache
+
+# --- Expo / Metro ----------------------------------------------------------
+.expo/
+.expo-shared/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# --- Projets natifs GÉNÉRÉS (expo prebuild / CNG) : jamais versionnés -------
+/ios/
+/android/
+.kotlin/
+*.orig.*
+
+# --- Sorties de compilation ------------------------------------------------
+build/
+Payload/
+*.ipa
+*.apk
+*.aab
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.hbc
+
+# --- Signature, certificats, clés : JAMAIS dans Git ------------------------
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
+*.cer
+*.crt
+*.der
+*.mobileprovision
+*.provisionprofile
+*.certSigningRequest
+keystore.properties
+signing/
+credentials.json
+credentials/
+google-services.json
+GoogleService-Info.plist
+client_secret*.json
+service-account*.json
+
+# --- Secrets / environnement ----------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Données utilisateur : JAMAIS dans Git ---------------------------------
+# Bases SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+# Audio
+*.m4a
+*.mp3
+*.wav
+*.aac
+*.caf
+*.ogg
+*.opus
+*.flac
+*.amr
+*.3gp
+*.webm
+# Exports et sauvegardes
+*.docx
+*.lsbackup
+exports/
+backups/
+private/
+user-data/
+# Archives (ex. copie du prototype READLOG-iOS-TEST.zip)
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+# Modèles de transcription téléchargés (volumineux)
+*.bin
+*.gguf
+*.onnx
+*.mlmodelc/
+
+# --- Fichier local de mots interdits (contient VOS identifiants) -----------
+.privacy-denylist
+.privacy-denylist.*
+
+# --- Journaux / divers -----------------------------------------------------
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json

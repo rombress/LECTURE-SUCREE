@@ -1,0 +1,27 @@
+# Journal des décisions
+
+Légende : ✅ validé (preuve citée) · 🔶 décidé, à confirmer sur appareil · ⏳ ouvert
+
+| # | Décision | Statut | Preuve / prochaine vérification |
+|---|---|---|---|
+| D1 | Développement sous Windows, compilation iOS non signée sur GitHub Actions `macos-26`, signature AltServer avec un identifiant Apple gratuit **secondaire** | ✅ | Prototype READLOG-iOS-TEST, iPhone physique, 2026-11-11 |
+| D2 | Rafraîchissement 7 jours via AltStore | ⏳ | Indiqué comme validé dans la demande, mais le compte-rendu du prototype l'indique « à tester avant le 2026-11-18 ». **À confirmer** |
+| D3 | Expo SDK 58 + React Native 0.88 + TypeScript, CNG (`ios/` et `android/` générés) | ✅ | Prototype + `tsc`, `expo-doctor` 20/20, bundles Hermes Android/iOS (2026-11-11) |
+| D4 | Dépôt Git **propre** au dossier `LECTURE-SUCREE`, branche `main` | ✅ | `git init` (le dossier dépendait du dépôt parent `ProjetClaude`) |
+| D5 | SQLite local (expo-sqlite), WAL, FTS5 sans accents, migrations par `user_version` | 🔶 | Schéma réel testé sous Node 24 (SQLite 3.53.4) ; à tester sur appareil via Diagnostic |
+| D6 | Sessions rattachées à un tome ; série → tomes en `SET NULL` ; tome → sessions en `RESTRICT` | ✅ | `tests/node/schema.test.mjs` |
+| D7 | Audio = source de vérité ; transcription brute et texte corrigé séparés ; segments écrits en ajout seul | 🔶 | Conception ; implémentation aux lots 1 et 3 |
+| D8 | Transcription : moteur natif Apple sur l'appareil, avec repli enregistrement seul et transcription différée. Candidats : `SFSpeechRecognizer` (via expo-speech-recognition 58.0.1) **et** `SpeechAnalyzer` (iOS 26, via module Swift local) | 🔶 | Comparaison : [TRANSCRIPTION.md](TRANSCRIPTION.md). Décision après le spike du lot 1 sur l'iPhone |
+| D9 | Audio original : **AAC mono 64 kbit/s (.m4a), ≈ 29 Mo/h**, enregistré par expo-audio **indépendamment de la transcription**, directement dans Documents, puis déplacé, haché (SHA-256) et jamais modifié | 🔶 | Adopté pour le MVP (relecture externe du 2026-11-11). À mesurer : lisibilité après un arrêt forcé (test C9) |
+| D10 | Android `allowBackup=false` (pas d'envoi automatique vers Google) | ⏸ V2 | Vérifié dans le manifeste généré ; conservé pour la V2 |
+| D11 | APK construit sur GitHub Actions ; clé release dans les secrets GitHub | ⏸ V2 | Workflow conservé, désormais en lancement manuel uniquement |
+| D12 | Sauvegardes : archive `.lsbackup` vérifiée par SHA-256, d'abord par la feuille de partage ; API Drive directe (`drive.appdata`) en option | ⏳ | [STORAGE.md](STORAGE.md) : scope, mode Testing et bundle ID AltStore à vérifier |
+| D13 | Protection du dépôt public : liste blanche + contrôle du contenu + historique + identité Git, en hooks et en CI | ✅ | 10 tests dans des dépôts jetables + exécution sur le vrai dépôt |
+| D14 | Bundle ID / package : `com.lecturesucree.app` (aucune donnée personnelle) | 🔶 | AltStore pourrait le suffixer avec un compte gratuit : à observer |
+| D15 | `expo-doctor` épinglé en 1.21.6 | ✅ | La 1.21.7, publiée le 2026-11-11, plante (`Cannot find module '@expo/env'`) |
+| D16 | **V1 = iPhone uniquement.** Android reporté à une V2 : `platforms: ['ios']`, workflow APK en lancement manuel seulement, aucun test Android. Rien n'est supprimé | ✅ | Demande du 2026-11-11 |
+| D17 | **React Native + Expo conservé** pour la V1 iOS. Pas de migration vers Swift ; un **module Swift local** est prévu si le spike le justifie (SpeechAnalyzer, capture unique AVAudioEngine + AAC, interruptions) | 🔶 | Analyse : [STACK-IOS.md](STACK-IOS.md). Relecture externe demandée : [reviews/](reviews/) |
+| D18 | ESLint typé (`no-floating-promises`) : une promesse non attendue est une perte de données potentielle | ✅ | La règle a détecté le défaut `File.write()` non attendu (revue du lot 0) |
+| D19 | Sauvegarde et restauration (lot 4) **avant** toute utilisation avec de vraies données | ⚠️ | Priorité n° 6 de la demande du 2026-11-11. Mise en tension par le souhait d'utiliser le MVP dès aujourd'hui : **décision du propriétaire attendue** (accepter le risque ou attendre) |
+| D20 | MVP audio sans transcription livré avant le spike de transcription | ✅ | Relecture externe du 2026-11-11 ([reviews/](reviews/)) |
+| D21 | Aucune suppression de livre ni de session dans le MVP | ✅ | Pas de perte possible par fausse manœuvre tant qu'il n'y a pas de sauvegarde |
