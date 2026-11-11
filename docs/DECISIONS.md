@@ -25,3 +25,8 @@ Légende : ✅ validé (preuve citée) · 🔶 décidé, à confirmer sur appare
 | D19 | Sauvegarde et restauration (lot 4) **avant** toute utilisation avec de vraies données | ⚠️ | Priorité n° 6 de la demande du 2026-11-11. Mise en tension par le souhait d'utiliser le MVP dès aujourd'hui : **décision du propriétaire attendue** (accepter le risque ou attendre) |
 | D20 | MVP audio sans transcription livré avant le spike de transcription | ✅ | Relecture externe du 2026-11-11 ([reviews/](reviews/)) |
 | D21 | Aucune suppression de livre ni de session dans le MVP | ✅ | Pas de perte possible par fausse manœuvre tant qu'il n'y a pas de sauvegarde |
+| D22 | Séries et couvertures **sans migration SQLite** : le schéma v1 contenait déjà `series`, `volumes.series_id` (ON DELETE SET NULL), `sort_index`, `cover_path` | ✅ | Données du MVP testées intactes (`series.test.ts`) |
+| D23 | Retirer une série détache **explicitement** ses tomes (UPDATE) avant de la supprimer, sans dépendre uniquement de la clé étrangère | ✅ | Testé, y compris avec `foreign_keys = OFF` |
+| D24 | Couvertures : JPEG ≤ 900 px (sans agrandissement), copiées dans `Documents/lecture-sucree/covers/` ; pas de recadrage iOS (il serait carré) | ✅ | Doc expo-image-picker 58 : « on iOS the crop rectangle is always a square » |
+| D25 | Plugin expo-image-picker : `microphonePermission` reçoit le texte du micro, **jamais `false`** (sinon la clé NSMicrophoneUsageDescription serait supprimée) ; caméra désactivée | ✅ | Code du plugin lu ; Info.plist introspecté (micro ✓, photos ✓, pas de caméra) |
+| D26 | Position d'un tome déduite de son libellé (« Tome 3 » → 3, « Hors-série » en dernier) | ✅ | Testé |

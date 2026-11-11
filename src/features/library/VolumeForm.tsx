@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Chip, Field, SectionTitle } from '@/components/ui';
+import { useDb } from '@/data/db/DatabaseProvider';
+import { listSeries } from '@/data/repositories/series';
 import { ValidationError, type VolumeFormInput } from '@/data/repositories/volumes';
 import { VOLUME_STATUSES, VOLUME_STATUS_LABELS, type Volume, type VolumeStatus } from '@/domain/models';
 import { validateVolume } from '@/domain/validation';
+import { CoverPicker } from '@/features/covers/CoverPicker';
+import type { CoverDraft } from '@/features/covers/coverStore';
 import { log } from '@/services/log';
 import { useTheme } from '@/theme/ThemeProvider';
 import { spacing } from '@/theme/tokens';
@@ -18,13 +22,16 @@ export function parseOptionalInt(text: string): number | null {
 
 export function VolumeForm({
   initial,
+  defaultSeriesId,
   submitLabel,
   onSubmit,
 }: {
   initial?: Volume;
+  defaultSeriesId?: string | null;
   submitLabel: string;
-  onSubmit: (input: VolumeFormInput) => Promise<void>;
+  onSubmit: (input: VolumeFormInput, cover: CoverDraft) => Promise<void>;
 }) {
+  const db = useDb();
   const { colors } = useTheme();
   const [title, setTitle] = useState(initial?.title ?? '');
   const [author, setAuthor] = useState(initial?.author ?? '');
@@ -33,8 +40,25 @@ export function VolumeForm({
   const [currentPage, setCurrentPage] = useState(initial ? String(initial.currentPage) : '');
   const [status, setStatus] = useState<VolumeStatus>(initial?.status ?? 'to_read');
   const [description, setDescription] = useState(initial?.description ?? '');
+  const [seriesId, setSeriesId] = useState<string | null>(initial ? initial.seriesId : (defaultSeriesId ?? null));
+  const [seriesOptions, setSeriesOptions] = useState<{ id: string; title: string }[]>([]);
+  const [cover, setCover] = useState<CoverDraft>({ kind: 'keep' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    listSeries(db)
+      .then((list) => {
+        if (alive) setSeriesOptions(list.map((s) => ({ id: s.id, title: s.title })).sort((a, b) => a.title.localeCompare(b.title, 'fr')));
+      })
+      .catch(() => log.warn('volume_form.series_load_failed'));
+    return () => {
+      alive = false;
+    };
+  }, [db]);
+
+  const movedOut = !!initial && initial.seriesId !== seriesId;
 
   const submit = async () => {
     const input: VolumeFormInput = {
@@ -45,6 +69,7 @@ export function VolumeForm({
       currentPage: parseOptionalInt(currentPage) ?? 0,
       status,
       description,
+      seriesId,
     };
     const v = validateVolume(input);
     if (!v.ok) {
@@ -54,7 +79,7 @@ export function VolumeForm({
     setErrors({});
     setSaving(true);
     try {
-      await onSubmit(input);
+      await onSubmit(input, cover);
     } catch (e) {
       if (e instanceof ValidationError) setErrors(e.errors);
       else {
@@ -73,9 +98,29 @@ export function VolumeForm({
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
+        <CoverPicker title={title} author={author} currentPath={initial?.coverPath ?? null} draft={cover} onChange={setCover} />
         <Field label="Titre" required value={title} onChangeText={setTitle} error={errors.title} autoFocus={!initial} returnKeyType="next" />
         <Field label="Auteur" required value={author} onChangeText={setAuthor} error={errors.author} returnKeyType="next" />
-        <Field label="Tome (numéro ou libellé)" value={volumeLabel} onChangeText={setVolumeLabel} placeholder="ex. 3, Tome 3, Hors-série" />
+
+        <SectionTitle>Série</SectionTitle>
+        <View style={styles.chips}>
+          <Chip label="Livre indépendant" selected={seriesId === null} onPress={() => setSeriesId(null)} />
+          {seriesOptions.map((s) => (
+            <Chip key={s.id} label={s.title} selected={seriesId === s.id} onPress={() => setSeriesId(s.id)} />
+          ))}
+        </View>
+        {movedOut ? (
+          <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+            Le tome changera de série. Ses sessions et enregistrements restent attachés à ce tome.
+          </Text>
+        ) : null}
+        <Field
+          label="Tome (numéro ou libellé)"
+          value={volumeLabel}
+          onChangeText={setVolumeLabel}
+          placeholder="ex. 3, Tome 3, Hors-série"
+        />
+
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Field label="Pages au total" value={pageCount} onChangeText={setPageCount} keyboardType="number-pad" error={errors.pageCount} />

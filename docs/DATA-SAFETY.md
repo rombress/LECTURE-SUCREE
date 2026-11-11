@@ -17,6 +17,8 @@ Uniquement **sur ton iPhone**, dans l'espace privé de l'app : la base SQLite (l
 | Fausse manœuvre | Le MVP ne permet **aucune** suppression de livre ni de session |
 | Expiration de la signature (7 jours) | L'app ne se lance plus, mais **les données restent** sur l'iPhone. Elles redeviennent accessibles après un Refresh ou une réinstallation du même bundle ID (comportement documenté par la communauté, *à confirmer : E2*) |
 | Installation d'une nouvelle version de l'IPA | Données conservées si le bundle ID est le même (*à confirmer : E1*) |
+| Séries (0.2.0) | Retirer une série ne supprime aucun tome, aucune session, aucun audio (testé) ; déplacer un tome ne touche jamais ses sessions (testé) |
+| Couvertures (0.2.0) | Copies privées dans l'app ; les images d'origine (Photos, Fichiers) ne sont jamais modifiées. Non incluses dans l'export audio |
 | Copie d'un audio vers Fichiers ou Drive | **Oui, manuellement** : bouton « Exporter l'audio » dans chaque session. Copie vérifiée par SHA-256 avant partage ; l'original n'est jamais touché |
 | Sauvegarde iCloud **de l'iPhone** | Si elle est activée dans les réglages iOS, elle inclut normalement les données des apps, donc celles-ci (non vérifié pour une app installée via AltStore) |
 

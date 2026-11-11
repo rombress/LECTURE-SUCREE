@@ -39,6 +39,31 @@ export function validateVolume(input: VolumeInput): ValidationResult {
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true };
 }
 
+export interface SeriesInput {
+  title: string;
+  author?: string | null;
+  description?: string | null;
+}
+
+export function validateSeries(input: SeriesInput): ValidationResult {
+  const title = input.title?.trim() ?? '';
+  if (!title) return { ok: false, errors: { title: 'Le titre de la série est obligatoire.' } };
+  if (title.length > MAX_TITLE) return { ok: false, errors: { title: `Le titre dépasse ${MAX_TITLE} caractères.` } };
+  return { ok: true };
+}
+
+/**
+ * Position d'un tome dans sa série, déduite de son libellé :
+ * « 3 » → 3, « Tome 12 » → 12, « T3 » → 3, « 3.5 » ou « 3,5 » → 3.5 ;
+ * « Hors-série » → null (classé après les tomes numérotés).
+ */
+export function parseVolumeNumber(label: string | null | undefined): number | null {
+  const m = /(\d+(?:[.,]\d+)?)/.exec(label ?? '');
+  if (!m?.[1]) return null;
+  const n = Number(m[1].replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
 export function isCategoryId(value: string): value is CategoryId {
   return CATEGORIES.some((c) => c.id === value);
 }

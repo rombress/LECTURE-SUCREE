@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'Lecture sucrée',
   slug: 'lecture-sucree',
   scheme: 'lecturesucree',
-  version: '0.1.0',
+  version: '0.2.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
@@ -34,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   platforms: ['ios'],
   ios: {
     bundleIdentifier: BUNDLE_ID,
-    buildNumber: '1',
+    buildNumber: '2',
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -81,6 +81,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'com.google.android.googlequicksearchbox',
           'com.google.android.as',
         ],
+      },
+    ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Lecture sucrée accède à vos photos uniquement pour choisir la couverture d’un livre ou d’une série.',
+        // Caméra inutilisée : `false` retire la clé.
+        cameraPermission: false,
+        // ATTENTION : ne JAMAIS mettre `false` ici — le plugin SUPPRIMERAIT la
+        // clé NSMicrophoneUsageDescription dont expo-audio a besoin (vérifié
+        // dans le code du plugin). On reprend le même texte.
+        microphonePermission: MIC_PERMISSION,
       },
     ],
     './plugins/withAndroidReleaseSigning',

@@ -25,6 +25,9 @@ function RootStack() {
           <Stack.Screen name="volume/[id]/index" options={{ title: '', headerTransparent: true }} />
           <Stack.Screen name="volume/[id]/edit" options={{ title: 'Modifier', presentation: 'modal' }} />
           <Stack.Screen name="volume/[id]/record" options={{ title: 'Session', presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="series/new" options={{ title: 'Nouvelle série', presentation: 'modal' }} />
+          <Stack.Screen name="series/[id]/index" options={{ title: '', headerTransparent: true }} />
+          <Stack.Screen name="series/[id]/edit" options={{ title: 'Modifier la série', presentation: 'modal' }} />
           <Stack.Screen name="session/[id]" options={{ title: 'Session' }} />
           <Stack.Screen name="diagnostic" options={{ title: 'Diagnostic technique' }} />
         </Stack>

@@ -26,14 +26,55 @@ Types : **local** = Windows 11, Node 24.20.0, npm 11.19.0 · **CI** = GitHub Act
 | 0.17 | APK installé sur Android | appareil | ⏸ V2 | Reporté (D16) |
 | 0.18 | IPA via AltServer, écran Diagnostic sur iPhone (permissions micro/voix + arrière-plan avec un compte gratuit) | appareil | ⏳ | Lot 0-bis |
 
+## Lot Bibliothèque (0.2.0, build 2) — 2026-11-11
+
+| Niveau | Statut | Détail |
+|---|---|---|
+| 1. Bundle JS compilé | ✅ local | `tsc` 0 erreur ; ESLint typé 0 avertissement ; `expo-doctor` 20/20 ; bundle iOS 2,9 Mo ; Info.plist introspecté (micro ✓, voix ✓, photos ✓, arrière-plan audio ✓, pas de caméra) |
+| 2. App native compilée | ⏳ | Il faut un push (autorisation requise), puis `ios-ipa` |
+| 3. IPA installée | ⏳ | Par-dessus la 0.1.0 : test E1 |
+| 4. Testée sur iPhone | ⏳ | Section F de [TEST-PROTOCOL-MVP.md](TEST-PROTOCOL-MVP.md) |
+
+Tests automatisés : **71** (51 Jest + 20 Node). Nouveaux tests (`series.test.ts`, SQLite réel, données fictives) :
+- les données du MVP restent intactes sans migration ;
+- tomes rangés dans l'ordre de leur numéro ;
+- déplacer un tome (série A → B → indépendant) laisse les sessions **strictement identiques** (comparaison ligne à ligne) ;
+- retirer une série laisse tomes, sessions et audios intacts, y compris avec les clés étrangères désactivées ;
+- rattachement à une série inexistante refusé sans modification ;
+- couverture de repli de la série ;
+- règles de libellé.
+
+**Relectures du lot :**
+- **Auto-relecture.** Elle a trouvé un défaut, corrigé : sur iOS, le recadrage d'`expo-image-picker` est toujours carré (documenté), alors on importe sans recadrage.
+- **Relecture indépendante** (agent séparé, lecture seule). **Aucun bug confirmé** ; les 6 exigences sont vérifiées : sessions jamais supprimées ni réassociées, retrait de série sans perte, déplacement sans perte, données du MVP sans migration, couvertures privées, non-régression audio.
+- **Correctif retenu de cette relecture : risque d'arrêt pour manque de mémoire** à l'import d'une photo 48 MP. L'image est désormais sous-échantillonnée dès le décodage (`maxWidth`, vérifié dans `ImageDownsampling.swift`).
+- Points mineurs **non corrigés** (aucune perte de données) :
+  - fichiers de couverture orphelins après un échec d'enregistrement ou un retrait de série ;
+  - message d'erreur générique si une série disparaît pendant l'édition d'un tome.
+
 ## MVP audio — 2026-11-11
 
 | Niveau | Statut | Détail |
 |---|---|---|
 | 1. Bundle JS compilé | ✅ local | Bundle Hermes iOS de 2,9 Mo ; `tsc` 0 erreur ; ESLint typé 0 problème ; `expo-doctor` 20/20 |
-| 2. App native compilée | ⏳ | Le workflow `ios-ipa` n'a jamais tourné (dépôt non publié) |
-| 3. IPA installée | ⏳ | |
-| 4. Testée sur iPhone | ⏳ | Protocole : [TEST-PROTOCOL-MVP.md](TEST-PROTOCOL-MVP.md) |
+| 2. App native compilée | ✅ CI | Run `ios-ipa` 43013538336 (2026-11-11, de 11:37 à 11:49 UTC, `macos-26`) : toutes les étapes vertes, y compris l'inspection bloquante de l'IPA (structure, `main.jsbundle`, arm64, clés micro/voix présentes, aucun entitlement interdit). Artefact `lecture-sucree-unsigned-ipa` de 11,5 Mo, expire le 2026-11-25. `ci` 43012762281 également vert |
+| 3. IPA installée | ✅ appareil | 2026-11-11 : **iPhone 14 Pro Max, iOS 27.0**, AltServer avec l'identifiant Apple secondaire. Échec via AltStore en Wi-Fi (« AltServer could not find this device ») ; **réussite avec l'iPhone branché en USB** |
+| 4. Testée sur iPhone | ✅ partiel | Rapporté par l'utilisateur le 2026-11-11 (voir le détail ci-dessous) |
+
+### Résultats sur iPhone (rapportés par l'utilisateur, 2026-11-11)
+
+| Test du protocole | Résultat |
+|---|---|
+| B1 Ajout de livre | ✅ |
+| B4 Persistance après fermeture complète | ✅ |
+| C2 Enregistrement de 30 s + réécoute | ✅ |
+| C5 Écran verrouillé pendant l'enregistrement | ✅ |
+| C7 Interruption | ✅ |
+| C8 Mode avion | ✅ |
+| C10 Sessions associées aux bons livres | ✅ |
+| D3 Export vers Fichiers | ✅ |
+| C3 Enregistrement de 10 min | ⏳ à tester |
+| C1, C4, C6, C9, D1, D2, E1, E2 | non rapportés individuellement |
 
 Tests automatisés : **60** (40 Jest + 20 Node). Ajout du 2026-11-11 : export d'un audio via le menu Partager (copie vérifiée par SHA-256, nom de fichier lisible et sûr, testé) et adresse d'auteur fictive autorisée (testé). Les nouveaux portent sur :
 - les dépôts tomes et sessions exécutés sur un **vrai SQLite** (node:sqlite, schéma de production) : création, modification, validation, association session ↔ livre, tris, refus de réattacher ou d'écraser un audio, sauvegarde régulière qui ne rouvre pas une session close ;

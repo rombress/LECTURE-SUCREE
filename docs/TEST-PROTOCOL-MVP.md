@@ -51,4 +51,22 @@ Consigner chaque résultat dans [TEST-RESULTS.md](TEST-RESULTS.md) : date, versi
 | E2 | AltStore → **Refresh All** | Données conservées |
 | E3 | (Plus tard) Lot Sauvegarde : supprimer l'app, la réinstaller, restaurer | Tout est revenu, audio relisible, pas seulement un checksum identique |
 
+## F. Bibliothèque : séries et couvertures (version 0.2.0, build 2)
+
+**Avant d'installer** : exporte les audios importants (D3), par précaution. L'IPA 0.2.0 s'installe **par-dessus** la 0.1.0 (même bundle ID) : c'est aussi le test **E1**.
+
+| # | Test | Attendu |
+|---|---|---|
+| F0 | Après la mise à jour, ouvrir l'app | **Tous les livres et sessions de la 0.1.0 sont présents**, les audios se réécoutent (E1) |
+| F1 | ＋ → Nouvelle série (titre + couverture depuis **Photos**) | La série s'ouvre ; la couverture s'affiche en entier, cadrée en 2:3 |
+| F2 | Dans la série : « Ajouter un tome » (libellé « 2 »), puis un autre (« 1 »), puis un « Hors-série » | Ordre affiché : 1, 2, Hors-série |
+| F3 | Rattacher un livre **existant** (avec des sessions) à la série : fiche → Modifier → Série | Le livre apparaît dans la série ; **ses sessions sont toutes là** et se réécoutent |
+| F4 | Le rendre indépendant (Série → « Livre indépendant ») | Il revient dans la bibliothèque, sessions intactes |
+| F5 | Couverture d'un tome depuis **Fichiers** (photo HEIC ou PNG) | Couverture visible dans la bibliothèque, la série et la fiche |
+| F6 | Remplacer une couverture, puis « Sans image » | Nouvelle image, puis retour à la couverture typographique |
+| F7 | **Retirer la série** (confirmer) | Ses tomes redeviennent indépendants, **avec toutes leurs sessions** ; aucun audio perdu |
+| F8 | Fermer complètement l'app, rouvrir | Séries, tomes et couvertures persistent |
+| F9 | Enregistrer une session dans un tome d'une série | Fonctionne comme avant (non-régression audio) |
+| C3 | (en attente) Enregistrement de 10 min | Durée ≈ 10:00, réécoute complète |
+
 **Tant que E3 n'est pas validé, aucune donnée n'est sauvegardée hors de l'iPhone** : supprimer l'app efface tout.

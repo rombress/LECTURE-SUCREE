@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CoverArt, coverShade } from '@/components/CoverArt';
 import { SessionRow } from '@/components/SessionRow';
 import { Button, EmptyState, SectionTitle } from '@/components/ui';
 import { useDb } from '@/data/db/DatabaseProvider';
+import { getSeries } from '@/data/repositories/series';
 import { listSessionsForVolume } from '@/data/repositories/sessions';
 import { getVolume } from '@/data/repositories/volumes';
 import { VOLUME_STATUS_LABELS } from '@/domain/models';
@@ -21,13 +22,14 @@ export default function VolumeScreen() {
   const insets = useSafeAreaInsets();
   const load = useCallback(async () => {
     const [volume, sessions] = await Promise.all([getVolume(db, id), listSessionsForVolume(db, id)]);
-    return { volume, sessions };
+    const series = volume?.seriesId ? await getSeries(db, volume.seriesId) : null;
+    return { volume, sessions, series };
   }, [db, id]);
   const { data, failed } = useFocusLoad(load);
 
   if (failed) return <EmptyState title="Erreur" text="Impossible de charger ce livre." />;
   if (!data) return null;
-  const { volume, sessions } = data;
+  const { volume, sessions, series } = data;
   if (!volume) return <EmptyState title="Livre introuvable" text="Ce livre n’existe plus." />;
 
   return (
@@ -35,10 +37,18 @@ export default function VolumeScreen() {
       <View style={[styles.hero, { backgroundColor: coverShade(volume.title), paddingTop: insets.top + 56 }]}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background, opacity: 0.35 }]} />
         <View style={[styles.heroFade, { backgroundColor: colors.background }]} />
-        <CoverArt title={volume.title} author={volume.author} label={volume.volumeLabel} width={150} />
+        <CoverArt title={volume.title} author={volume.author} label={volume.volumeLabel} width={150} coverPath={volume.coverPath} />
       </View>
 
       <View style={styles.body}>
+        {series ? (
+          <Pressable accessibilityRole="link" onPress={() => router.push(`/series/${series.id}`)}>
+            <Text style={[styles.seriesLink, { color: colors.accent }]}>
+              {series.title.toUpperCase()}
+              {volume.volumeLabel ? ` · ${volume.volumeLabel.toUpperCase()}` : ''} ›
+            </Text>
+          </Pressable>
+        ) : null}
         <Text style={[styles.title, { color: colors.textPrimary, fontFamily: fonts.serif }]}>{volume.title}</Text>
         <Text style={[styles.author, { color: colors.textSecondary }]}>
           {volume.author}
@@ -81,6 +91,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center', paddingBottom: spacing.xl, overflow: 'hidden' },
   heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '35%', opacity: 0.9 },
   body: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  seriesLink: { textAlign: 'center', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   title: { fontSize: 28, fontWeight: '700', lineHeight: 34, textAlign: 'center' },
   author: { fontSize: 16, textAlign: 'center' },
   metaRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
