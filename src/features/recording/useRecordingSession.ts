@@ -26,9 +26,21 @@ import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DbLike } from '@/data/db/types';
-import { createSession, finalizeSession, touchSession } from '@/data/repositories/sessions';
+import {
+  appendTranscriptSegment,
+  createSession,
+  finalizeSession,
+  finalizeTranscript,
+  saveTranscriptDraft,
+  touchSession,
+} from '@/data/repositories/sessions';
+import type { TranscriptStatus } from '@/domain/models';
 import { utcOffsetOf } from '@/domain/time';
 import { log } from '@/services/log';
+
+import { deviceSpeechEngine, engineAvailability, requestSpeechPermission } from '@/features/transcription/deviceEngine';
+import { LOCALE, engineId, liveOptions } from '@/features/transcription/engine';
+import { LiveTranscriber, type TranscriberStatus, type UnavailableReason } from '@/features/transcription/liveTranscriber';
 
 import { deviceAudioOps, settleAudio } from './audioStore';
 
@@ -54,13 +66,48 @@ export type RecordingErrorKind = 'permission' | 'start' | 'finalize';
 
 const AUTOSAVE_MS = 5000;
 
-export function useRecordingSession(db: DbLike | null, volumeId: string) {
+export interface TranscriptionSetup {
+  enabled: boolean;
+  allowNetwork: boolean;
+}
+
+export type LiveTranscriptState =
+  | { status: 'off' }
+  | { status: TranscriberStatus; reason?: UnavailableReason };
+
+/** Exécute une action de transcription sans jamais laisser une erreur atteindre l'enregistrement. */
+function safely(fn: () => void) {
+  try {
+    fn();
+  } catch {
+    log.warn('transcription.action_failed');
+  }
+}
+
+/** Statut final enregistré avec la session. */
+export function finalTranscriptStatus(enabled: boolean, text: string, unavailable: boolean): TranscriptStatus {
+  if (!enabled) return 'none';
+  if (unavailable) return text ? 'partial' : 'failed';
+  return text ? 'complete' : 'none';
+}
+
+export function useRecordingSession(db: DbLike | null, volumeId: string, transcription: TranscriptionSetup) {
   const recorder = useAudioRecorder(VOICE_RECORDING);
   const recState = useAudioRecorderState(recorder, 250);
   const [phase, setPhase] = useState<RecordingPhase>('idle');
   const [error, setError] = useState<RecordingErrorKind | null>(null);
   const session = useRef<{ id: string; startedAt: string } | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Transcription (indépendante de l'audio)
+  const transcriber = useRef<LiveTranscriber | null>(null);
+  const seq = useRef(0);
+  const lastDraft = useRef('');
+  const wasUnavailable = useRef(false);
+  const [liveText, setLiveText] = useState('');
+  const [transcript, setTranscript] = useState<LiveTranscriptState>({ status: 'off' });
+
+  // Le transcripteur est libéré si l'écran disparaît.
+  useEffect(() => () => transcriber.current?.dispose(), []);
 
   // Interruption système : le recorder ne tourne plus alors que nous pensions enregistrer.
   const interrupted = phase === 'recording' && !recState.isRecording && recState.durationMillis > 0;
@@ -75,9 +122,41 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
       touchSession(db, s.id, st.durationMillis, st.isRecording ? 'recording' : 'paused', new Date().toISOString()).catch(() =>
         log.warn('recording.autosave_failed'),
       );
+      const draft = transcriber.current?.text ?? '';
+      if (draft && draft !== lastDraft.current) {
+        lastDraft.current = draft;
+        saveTranscriptDraft(db, s.id, draft, new Date().toISOString()).catch(() => log.warn('transcription.draft_failed'));
+      }
     }, AUTOSAVE_MS);
     return () => clearInterval(timer);
   }, [db, phase, recorder]);
+
+  const startTranscriber = useCallback(
+    (id: string) => {
+      if (!db) return;
+      safely(() => {
+        transcriber.current?.dispose();
+        seq.current = 0;
+        lastDraft.current = '';
+        const t = new LiveTranscriber(deviceSpeechEngine, liveOptions(transcription.allowNetwork), {
+          onCommit: (segment) => {
+            seq.current += 1;
+            appendTranscriptSegment(db, id, seq.current, segment, new Date().toISOString()).catch(() =>
+              log.warn('transcription.segment_save_failed'),
+            );
+          },
+          onChange: (text) => setLiveText(text),
+          onStatus: (status, reason) => {
+            if (status === 'unavailable') wasUnavailable.current = true;
+            setTranscript(reason ? { status, reason } : { status });
+          },
+        });
+        transcriber.current = t;
+        t.start();
+      });
+    },
+    [db, transcription.allowNetwork],
+  );
 
   const start = useCallback(
     async (page: number | null) => {
@@ -89,6 +168,21 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
         setError('permission');
         setPhase('idle');
         return;
+      }
+      // Transcription : permission et disponibilité vérifiées AVANT de capter.
+      // Un refus ou une indisponibilité n'empêche JAMAIS l'enregistrement.
+      let transcribe = transcription.enabled;
+      if (transcribe) {
+        const avail = engineAvailability(transcription.allowNetwork);
+        if (!avail.ok) {
+          transcribe = false;
+          wasUnavailable.current = true;
+          setTranscript({ status: 'unavailable', reason: avail.reason === 'no-offline' ? 'no-offline' : 'service' });
+        } else if (!(await requestSpeechPermission())) {
+          transcribe = false;
+          wasUnavailable.current = true;
+          setTranscript({ status: 'unavailable', reason: 'permission' });
+        }
       }
       const id = randomUUID();
       const startedAt = new Date().toISOString();
@@ -107,7 +201,8 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
         await recorder.prepareToRecordAsync({ ...VOICE_RECORDING, directory: 'document', fileName: id });
         recorder.record();
         setPhase('recording');
-        log.info('recording.started');
+        log.info('recording.started', { transcribe });
+        if (transcribe) startTranscriber(id);
       } catch (e) {
         log.error('recording.start_failed', { kind: e instanceof Error ? e.name : 'unknown' });
         setError('start');
@@ -122,19 +217,21 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
         }
       }
     },
-    [db, phase, recorder, volumeId],
+    [db, phase, recorder, volumeId, transcription.enabled, transcription.allowNetwork, startTranscriber],
   );
 
   const pause = useCallback(() => {
     if (phase !== 'recording') return;
     recorder.pause();
     setPhase('paused');
+    safely(() => transcriber.current?.pause());
   }, [phase, recorder]);
 
   const resume = useCallback(() => {
     if (phase !== 'recording' && phase !== 'paused') return;
     recorder.record();
     setPhase('recording');
+    safely(() => transcriber.current?.resume());
   }, [phase, recorder]);
 
   /** Arrêt : finalise le fichier, le déplace, calcule le SHA-256, clôt la session. */
@@ -143,11 +240,30 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
     if (!db || !s || (phase !== 'recording' && phase !== 'paused')) return;
     setPhase('stopping');
     const durationMs = recorder.getStatus().durationMillis;
+    // La transcription termine en parallèle (dernier énoncé, ≤ 2,5 s) ; l'audio passe d'abord.
+    const textPromise: Promise<string> = transcriber.current ? transcriber.current.stop().catch(() => transcriber.current?.text ?? '') : Promise.resolve('');
     try {
       await recorder.stop();
       const audio = await settleAudio(deviceAudioOps, s.id, s.startedAt, durationMs);
       await finalizeSession(db, s.id, { endedAt: new Date().toISOString(), durationMs, state: 'completed', audio });
       log.info('recording.completed', { durationMs, hasAudio: audio !== null });
+      // Transcription : une erreur ici ne remet JAMAIS en cause la session audio.
+      try {
+        const text = (await textPromise).trim();
+        await finalizeTranscript(
+          db,
+          s.id,
+          {
+            raw: text,
+            status: finalTranscriptStatus(transcription.enabled, text, wasUnavailable.current),
+            engine: transcription.enabled ? engineId(transcription.allowNetwork) : null,
+            locale: transcription.enabled ? LOCALE : null,
+          },
+          new Date().toISOString(),
+        );
+      } catch (e) {
+        log.error('transcription.finalize_failed', { kind: e instanceof Error ? e.name : 'unknown' });
+      }
       setPhase('done');
     } catch (e) {
       // La session reste « recording » en base : elle sera récupérée au prochain
@@ -158,7 +274,7 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
     } finally {
       await setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false }).catch(() => undefined);
     }
-  }, [db, phase, recorder]);
+  }, [db, phase, recorder, transcription.enabled, transcription.allowNetwork]);
 
   return {
     phase,
@@ -167,6 +283,8 @@ export function useRecordingSession(db: DbLike | null, volumeId: string) {
     interrupted,
     durationMs: recState.durationMillis,
     fileSize: recState.fileSize,
+    liveText,
+    transcript,
     start,
     pause,
     resume,
