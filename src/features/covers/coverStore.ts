@@ -7,19 +7,21 @@
  *   (« en attente ») ; à l'enregistrement, elle est COPIÉE dans
  *   Documents/lecture-sucree/covers/<id>-<horodatage>.jpg (persistant).
  * - L'image d'origine dans Photos/Fichiers n'est jamais modifiée.
- * - Aucune API externe : tout est local.
+ * - Couvertures importées d'un catalogue : voir `downloadCover` (téléchargée
+ *   une seule fois, puis conservée localement comme les autres).
  */
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
 import { APP_DIR, Dirs, coverRelativePath, isSafeRelativePath } from '@/data/files/paths';
+import { USER_AGENT } from '@/features/bookSearch/http';
 import { log } from '@/services/log';
 
 const MAX_WIDTH = 900;
 
 /** Normalise une image choisie : JPEG ≤ 900 px de large. Retourne l'URI temporaire (cache). */
-async function normalize(uri: string): Promise<string> {
+export async function normalize(uri: string): Promise<string> {
   // `maxWidth` sous-échantillonne AU DÉCODAGE (ImageDownsampling.swift) : une
   // photo 48 MP n'est jamais chargée en pleine résolution (≈ 190 Mo évités).
   // Une image plus petite n'est jamais agrandie.
@@ -48,6 +50,34 @@ export async function pickCoverFromFiles(): Promise<string | null> {
   const res = await File.pickFileAsync({ mimeTypes: ['image/*'] });
   if (res.canceled || !res.result) return null;
   return normalize(res.result.uri);
+}
+
+/** Taille minimale d'une vraie couverture (écarte les images « 1×1 » de remplacement). */
+const MIN_COVER_BYTES = 2000;
+
+/**
+ * Télécharge une couverture de catalogue (HTTPS uniquement) dans le cache,
+ * puis la normalise comme une image choisie à la main. Retourne l'URI « en
+ * attente », à enregistrer ensuite avec `persistCover`. Lève une erreur si
+ * le fichier est absent, trop petit ou n'est pas une image lisible.
+ */
+export async function downloadCover(url: string): Promise<string> {
+  if (!/^https:\/\//i.test(url)) throw new Error('URL de couverture non sécurisée');
+  const dir = new Directory(Paths.cache, APP_DIR, 'cover-downloads');
+  if (!dir.exists) dir.create({ intermediates: true });
+  const target = new File(dir, `dl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
+  // Le code natif refuse toute réponse hors 2xx (FileSystemDownload.swift).
+  const file = await File.downloadFileAsync(url, target, { idempotent: true, headers: { 'User-Agent': USER_AGENT } });
+  try {
+    if (!file.exists || file.size < MIN_COVER_BYTES) throw new Error('couverture absente ou vide');
+    return await normalize(file.uri);
+  } finally {
+    try {
+      if (file.exists) file.delete();
+    } catch {
+      log.warn('cover.download_cleanup_failed');
+    }
+  }
 }
 
 function coversRoot(): Directory {

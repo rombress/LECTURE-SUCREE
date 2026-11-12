@@ -18,10 +18,15 @@ const COLUMNS = 3;
 
 function openAddMenu() {
   ActionSheetIOS.showActionSheetWithOptions(
-    { options: ['Nouveau livre', 'Nouvelle série', 'Annuler'], cancelButtonIndex: 2, title: 'Ajouter à la bibliothèque' },
+    {
+      options: ['Rechercher un livre', 'Saisir un livre à la main', 'Nouvelle série', 'Annuler'],
+      cancelButtonIndex: 3,
+      title: 'Ajouter à la bibliothèque',
+    },
     (i) => {
-      if (i === 0) router.push('/volume/new');
-      if (i === 1) router.push('/series/new');
+      if (i === 0) router.push('/search');
+      if (i === 1) router.push('/volume/new');
+      if (i === 2) router.push('/series/new');
     },
   );
 }
@@ -83,7 +88,8 @@ export default function LibraryScreen() {
                 title="Votre bibliothèque est vide"
                 text="Ajoutez un livre, ou créez une série pour y ranger ses tomes."
               />
-              <Button label="Ajouter un livre" onPress={() => router.push('/volume/new')} big />
+              <Button label="Rechercher un livre" onPress={() => router.push('/search')} big />
+              <Button label="Saisir un livre à la main" variant="secondary" onPress={() => router.push('/volume/new')} />
               <Button label="Créer une série" variant="secondary" onPress={() => router.push('/series/new')} />
             </View>
           ) : undefined

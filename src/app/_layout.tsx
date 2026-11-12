@@ -22,6 +22,9 @@ function RootStack() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="volume/new" options={{ title: 'Nouveau livre', presentation: 'modal' }} />
+          <Stack.Screen name="search/index" options={{ title: 'Rechercher un livre' }} />
+          <Stack.Screen name="search/edition" options={{ title: 'Vérifier l’édition' }} />
+          <Stack.Screen name="search/batch" options={{ title: 'Ajouter plusieurs tomes' }} />
           <Stack.Screen name="volume/[id]/index" options={{ title: '', headerTransparent: true }} />
           <Stack.Screen name="volume/[id]/edit" options={{ title: 'Modifier', presentation: 'modal' }} />
           <Stack.Screen name="volume/[id]/record" options={{ title: 'Session', presentation: 'fullScreenModal' }} />
