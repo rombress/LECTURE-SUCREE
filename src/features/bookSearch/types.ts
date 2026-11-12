@@ -16,6 +16,19 @@ export const SOURCE_LABELS: Record<BookSource, string> = {
 
 export type BookFormat = 'light_novel' | 'manga' | 'other' | 'unknown';
 
+/** Nom complet des sources, pour la mention de provenance des couvertures. */
+export const SOURCE_FULL_NAMES: Record<BookSource, string> = {
+  bnf: 'Bibliothèque nationale de France',
+  openlibrary: 'Open Library (Internet Archive)',
+  google: 'Google Books',
+};
+
+/** Mention de provenance et de date d'une couverture (exigée par les conditions de la BnF). */
+export function coverCredit(source: BookSource, retrievedAt: Date): string {
+  const d = retrievedAt.toISOString().slice(0, 10).split('-').reverse().join('/');
+  return `Couverture : ${SOURCE_FULL_NAMES[source]}, récupérée le ${d}`;
+}
+
 export const FORMAT_LABELS: Record<BookFormat, string> = {
   light_novel: 'Light novel',
   manga: 'Manga',
@@ -67,6 +80,10 @@ export interface BookCandidate {
   pageCount: number | null;
   /** Couverture DE CETTE ÉDITION (même ISBN / même notice), jamais d'une autre. */
   coverUrl: string | null;
+  /** Catalogue qui fournit la couverture (attribution obligatoire pour la BnF). */
+  coverSource: BookSource | null;
+  /** Notice BnF (ark) : sert à demander la couverture de CETTE notice. */
+  bnfArk?: string | null;
   /** Support physique tel que décrit (« 21 cm », « Paperback », « eBook »). */
   physical: string | null;
   format: BookFormat;

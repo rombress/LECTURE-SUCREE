@@ -165,6 +165,7 @@ export function parseOpenLibrarySearch(json: unknown): { total: number; candidat
       isbn,
       pageCount,
       coverUrl: typeof ed?.cover_i === 'number' ? olCoverById(ed.cover_i) : null,
+      coverSource: typeof ed?.cover_i === 'number' ? 'openlibrary' : null,
       physical,
       format,
       formatReasons: reasons,
@@ -211,25 +212,26 @@ function editionLanguage(e: OlEditionJson): string | null {
  */
 export function chooseEdition(editions: readonly OlEditionJson[], wanted: { isbn: string | null; language: string | null }): OlEditionJson | null {
   const withIsbn = (e: OlEditionJson) => pickIsbn([...asStrings(e.isbn_13), ...asStrings(e.isbn_10)]);
-  if (wanted.isbn) {
-    const exact = editions.find((e) => withIsbn(e) === wanted.isbn);
-    if (exact && !NON_PRINT.test(normalizeForMatch(exact.physical_format))) return exact;
-  }
+  const exact = wanted.isbn ? editions.find((e) => withIsbn(e) === wanted.isbn) : undefined;
+  // L'édition affichée est introuvable (œuvre de plus de 50 éditions…) : on
+  // n'en choisit PAS une autre au hasard ; l'appelant garde l'originale.
+  if (wanted.isbn && !exact) return null;
+  if (exact && !NON_PRINT.test(normalizeForMatch(exact.physical_format))) return exact;
+  // Remplacer un ebook par l'imprimé exige une langue CONNUE et identique ;
+  // sinon on garde l'édition affichée telle quelle.
+  const language = wanted.language ?? (exact ? editionLanguage(exact) : null);
+  if (!language) return exact ?? null;
   const scored = editions
+    .filter((e) => editionLanguage(e) === language && !NON_PRINT.test(normalizeForMatch(e.physical_format)))
     .map((e) => {
       let s = 0;
-      const lang = editionLanguage(e);
-      if (wanted.language && lang === wanted.language) s += 8;
-      else if (wanted.language && lang && lang !== wanted.language) s -= 20;
-      if (NON_PRINT.test(normalizeForMatch(e.physical_format))) s -= 10;
       if (withIsbn(e)) s += 4;
       if (asNumber(e.number_of_pages)) s += 2;
       if (e.covers?.some((c) => c > 0)) s += 2;
       return { e, s };
     })
-    .filter((x) => x.s > -10)
     .sort((a, b) => b.s - a.s);
-  return scored[0]?.e ?? null;
+  return scored[0]?.e ?? exact ?? null;
 }
 
 /** Applique l'édition exacte au résultat : pages, ISBN, éditeur, couverture et série viennent TOUS d'elle. */
@@ -248,6 +250,7 @@ export function applyEdition(c: BookCandidate, e: OlEditionJson): BookCandidate 
   if (!isbn) warnings.push('ISBN absent');
   if (!cover) warnings.push('Pas de couverture pour cette édition');
   if (volume && !volume.confident) warnings.push('Numéro de tome déduit du titre, à vérifier');
+  if (c.isbn && isbn !== c.isbn) warnings.push('Édition imprimée retenue à la place de l’édition affichée (ISBN différent) : vérifiez la fiche');
   const ref = editionKey ? `openlibrary:${editionKey}` : c.sourceRef;
   return {
     ...c,
@@ -259,6 +262,7 @@ export function applyEdition(c: BookCandidate, e: OlEditionJson): BookCandidate 
     publisher: tidy(asStrings(e.publishers)[0]) ?? null,
     language: editionLanguage(e) ?? c.language,
     coverUrl: cover ? olCoverById(cover) : null,
+    coverSource: cover ? 'openlibrary' : null,
     seriesTitle,
     volume,
     physical,

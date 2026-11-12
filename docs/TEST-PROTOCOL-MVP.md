@@ -22,11 +22,13 @@ Utiliser tes trois séries de test. Pour chaque test, noter **OK / KO** et le me
 | J1 | Lancer l'app, ouvrir la Bibliothèque puis Réglages → Diagnostic | Livres, séries, couvertures, sessions, audios et transcriptions **tous présents**. Diagnostic : « schéma v2/2 » |
 | J2 | ＋ → **Rechercher un livre** → la série n° 1, titre français | Éditions **françaises en tête**, light novels, numéros dans l'ordre. État des sources affiché (« BnF : N retenus · Open Library : N retenus »). Mangas masqués, avec leur nombre |
 | J3 | Toucher le chip de format (« Tous les formats ») | Les mangas et autres formats (coloriages…) apparaissent, marqués « Manga » ou « Autre format » |
-| J4 | Toucher une édition **française** | Fiche « Édition trouvée » : langue, éditeur, tome, source. Pages et ISBN remplis. Couverture probablement **absente**, avec un message (limite connue) |
-| J5 | Modifier un champ, puis **Ajouter** | Le livre s'ouvre avec les infos modifiées. Choisir une couverture dans Photos fonctionne toujours |
+| J4 | Toucher une édition **française** de la série 2, puis de la série 1 | Fiche « Édition trouvée » : langue, éditeur, tome, source ; pages et ISBN remplis. Série 2 : **couverture BnF** affichée, avec « Couverture de cette édition : Bibliothèque nationale de France ». Série 1 : pas de couverture, message (limite connue) |
+| J5 | Modifier un champ, puis **Ajouter** | Le livre s'ouvre avec les infos modifiées. Sous la couverture BnF : « Couverture : Bibliothèque nationale de France, récupérée le … ». Remplacer ensuite la couverture par une photo : **la mention disparaît** |
+| J5b | Rechercher « nom de la série 2 + nom de l'auteur » | Les tomes français 1 à 4 apparaissent (une recherche par le seul titre anglais en manque) |
 | J6 | Rechercher la série n° 3 (aucune édition française dans les catalogues) | Éditions **anglaises** proposées, avec couvertures pour la plupart. Tome 14.5 et tomes sans numéro signalés |
 | J7 | « Ajouter plusieurs tomes » → cocher 4 tomes **dont un déjà ajouté** en J5 → Vérifier | Le doublon est **décoché** et marqué « Déjà dans la bibliothèque ». Ordre des numéros. Avertissement si langues ou éditeurs sont mélangés |
-| J8 | Choisir « Nouvelle série », corriger l'auteur si besoin, **Ajouter** | Progression « Lecture des détails… », puis bilan : N tomes ajoutés, doublon non ajouté, couvertures manquantes comptées. « Voir la série » : tomes dans l'ordre, couvertures présentes quand elles existent |
+| J8 | Choisir « Nouvelle série », corriger l'auteur si besoin, **Ajouter** | Progression « Lecture des détails… » (retour impossible pendant l'ajout), puis bilan : N tomes ajoutés, doublon non ajouté, couvertures manquantes comptées. « Voir la série » : tomes dans l'ordre, couvertures présentes quand elles existent |
+| J8b | Relancer un ajout groupé et revenir en arrière **pendant** « Lecture des détails » | Rien n'est ajouté (vérifier la bibliothèque) |
 | J9 | Série n° 2 en anglais : vérifier l'auteur proposé | S'il est en japonais, l'avertissement le dit et le champ « Auteur » permet de le corriger pour tous les tomes |
 | J10 | Rechercher un **ISBN** (celui d'un livre ajouté) | Un seul résultat : cette édition |
 | J11 | **Mode avion** → rechercher | « Pas de connexion », bouton « Ajouter à la main ». La bibliothèque reste consultable et l'ajout manuel fonctionne |

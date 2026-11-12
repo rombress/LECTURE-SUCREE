@@ -55,6 +55,10 @@ export function findDuplicate(
   const hit = existing.find((e) => {
     if (normalizeForMatch(e.title) !== title) return false;
     if (targetSeriesId && e.seriesId && e.seriesId !== targetSeriesId) return false;
+    // Hors-série et intégrales : « Alter 1 » ou « 1-12 » ne sont pas le tome 1.
+    // On compare alors le libellé exact.
+    const kind = c.volume?.kind;
+    if (kind === 'special' || kind === 'omnibus') return normalizeForMatch(c.volume?.label) === normalizeForMatch(e.volumeLabel);
     // Deux tomes au même titre mais de numéros différents ne sont pas des doublons.
     if (num != null || e.sortIndex != null) return num === e.sortIndex;
     return true;

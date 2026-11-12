@@ -10,7 +10,7 @@
  *   collection et numéro · 330$a résumé · 461$t/$v série et numéro ·
  *   608$a forme/genre · 700/701$a,$b auteurs.
  *
- * Pas de couverture : la BnF n'en fournit pas par API.
+ * Couvertures : service Couvertures de la BnF (voir `bnfCoverUrl` ci-dessous).
  */
 import { classifyFormat } from './classify';
 import { asIsbnQuery, pickIsbn } from '@/domain/isbn';
@@ -20,20 +20,36 @@ import { volumeFromCatalog, volumeFromTitle } from './volumeNumber';
 
 export const BNF_SRU = 'https://catalogue.bnf.fr/api/SRU';
 
+/**
+ * Service Couvertures (bêta, février 2026, sans clé) :
+ * https://api.bnf.fr/fr/api-service-couvertures-du-catalogue-general
+ * Interrogé par l'ark de LA notice : la couverture est forcément celle de
+ * cette édition. Une notice sans couverture répond HTTP 500 (documenté).
+ * Réutilisation : Licence Ouverte, provenance et date de récupération à mentionner.
+ */
+export const BNF_COVER = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
+export function bnfCoverUrl(ark: string, size: 'thumb' | 'large'): string {
+  const base = `${BNF_COVER}?idArk=${encodeURIComponent(ark).replace(/%3A/g, ':').replace(/%2F/g, '/')}&couverture=1`;
+  return size === 'thumb' ? base : `${base}&taille=originale&largeur=900&hauteur=1350`;
+}
+
 /** Échappe une valeur pour une requête CQL entre guillemets. */
 function cqlQuote(s: string): string {
   return `"${s.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim()}"`;
 }
 
 /**
- * Requête CQL : ISBN exact, sinon titre OU auteur contenant tous les mots.
+ * Requête CQL : ISBN exact, sinon tous les mots dans l'ensemble de la notice
+ * (titre, série, auteur…). Constaté le 2026-11-12 : « titre OU auteur » ne
+ * trouvait pas les tomes dont le titre propre ne contient pas le nom de la
+ * série, ni une recherche « série + auteur ». Le filtre de pertinence de
+ * l'app écarte ensuite les notices hors sujet.
  * Limitée aux documents imprimés (doctype « a ») : écarte disques et vidéos.
  */
 export function buildBnfQuery(query: string): string {
   const isbn = asIsbnQuery(query);
   if (isbn) return `bib.isbn any "${isbn}"`;
-  const q = cqlQuote(query);
-  return `(bib.title all ${q} or bib.author all ${q}) and bib.doctype any "a"`;
+  return `bib.anywhere all ${cqlQuote(query)} and bib.doctype any "a"`;
 }
 
 export function buildBnfUrl(query: string, maximumRecords = 100, startRecord = 1): string {
@@ -173,6 +189,8 @@ export function parseBnfRecord(recordXml: string, ark: string | null): BookCandi
     isbn,
     pageCount,
     coverUrl: null,
+    coverSource: null,
+    bnfArk: ark,
     physical,
     format,
     formatReasons: reasons,

@@ -109,6 +109,24 @@ describe('Open Library : séries et édition exacte', () => {
     expect(chooseEdition(eds, { isbn: fakeIsbn(7), language: 'eng' })?.key).toBe('/books/E3');
   });
 
+  it('ISBN affiché introuvable parmi les éditions → null (aucune autre édition choisie au hasard)', () => {
+    expect(chooseEdition(eds, { isbn: fakeIsbn(40), language: 'eng' })).toBeNull();
+  });
+
+  it('ebook affiché de langue inconnue : il est gardé, jamais remplacé par une édition d’une autre langue', () => {
+    const list: OlEditionJson[] = [
+      { key: '/books/EB', physical_format: 'ebook', isbn_13: [fakeIsbn(41)] },
+      { key: '/books/JP', physical_format: 'Paperback', isbn_13: [fakeIsbn(42)], number_of_pages: 300, covers: [1], languages: [{ key: '/languages/jpn' }] },
+    ];
+    expect(chooseEdition(list, { isbn: fakeIsbn(41), language: null })?.key).toBe('/books/EB');
+  });
+
+  it('édition imprimée retenue à la place de l’ebook affiché : signalé', () => {
+    const base = { ...parseOpenLibrarySearch(search).candidates[0]!, isbn: fakeIsbn(3) };
+    expect(applyEdition(base, eds[1]!).warnings.join(' ')).toMatch(/ISBN différent/);
+    expect(applyEdition({ ...base, isbn: fakeIsbn(6) }, eds[1]!).warnings.join(' ')).not.toMatch(/ISBN différent/);
+  });
+
   it('aucune édition dans la bonne langue → null', () => {
     expect(chooseEdition([eds[2]!], { isbn: null, language: 'eng' })).toBeNull();
   });

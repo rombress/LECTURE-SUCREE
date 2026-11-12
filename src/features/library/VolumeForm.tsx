@@ -181,7 +181,8 @@ export function VolumeForm({
 
         <SectionTitle>Édition (facultatif)</SectionTitle>
         <Field label="Éditeur" value={publisher} onChangeText={setPublisher} />
-        <Field label="ISBN" value={isbn} onChangeText={setIsbn} keyboardType="number-pad" error={errors.isbn} placeholder="13 chiffres" />
+        {/* Clavier complet : un ISBN-10 peut se terminer par X. */}
+        <Field label="ISBN" value={isbn} onChangeText={setIsbn} autoCapitalize="characters" autoCorrect={false} error={errors.isbn} placeholder="10 ou 13 caractères" />
         <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>Langue</Text>
         <View style={styles.chips}>
           {languageChoices.map((l) => (

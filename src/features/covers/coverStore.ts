@@ -80,6 +80,20 @@ export async function downloadCover(url: string): Promise<string> {
   }
 }
 
+/**
+ * Supprime une image « en attente » du CACHE de l'app (jamais une image du
+ * stockage privé ni une image de l'utilisateur). Erreur ignorée.
+ */
+export function discardPendingCover(pendingUri: string | null | undefined): void {
+  if (!pendingUri || !pendingUri.startsWith(Paths.cache.uri)) return;
+  try {
+    const f = new File(pendingUri);
+    if (f.exists) f.delete();
+  } catch {
+    log.warn('cover.pending_cleanup_failed');
+  }
+}
+
 function coversRoot(): Directory {
   return new Directory(Paths.document, APP_DIR, Dirs.covers);
 }

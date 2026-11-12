@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import { createTestDb } from '@/__testutils__/nodeDb';
 import { createSeries } from '@/data/repositories/series';
-import { createVolume, getVolume } from '@/data/repositories/volumes';
+import { createVolume, getVolume, updateVolume } from '@/data/repositories/volumes';
 
 import { duplicatesWithinSelection, findDuplicate, loadExistingKeys } from '../duplicates';
 import { importBatch, type CoverOps } from '../importBooks';
@@ -67,6 +67,16 @@ describe('doublons', () => {
     expect(findDuplicate(vol(2, { title: 'Arc 1', isbn: null }), keys)).toBeNull();
   });
 
+  it('hors-série et intégrale : jamais pris pour le tome de même numéro', async () => {
+    const db = createTestDb();
+    await seedExistingData(db);
+    const keys = await loadExistingKeys(db);
+    const special = { label: 'Alter 1', number: 1, kind: 'special' as const, origin: 'title' as const, confident: true };
+    const omnibus = { label: '1-12', number: 1, kind: 'omnibus' as const, origin: 'title' as const, confident: true };
+    expect(findDuplicate(vol(1, { isbn: null, volume: special }), keys)).toBeNull();
+    expect(findDuplicate(vol(1, { isbn: null, volume: omnibus }), keys)).toBeNull();
+  });
+
   it('doublons à l’intérieur d’une sélection (même ISBN, ou même tome même langue)', () => {
     const dup = duplicatesWithinSelection([vol(1), vol(1, { id: 'copie' }), vol(2), vol(2, { id: 'en', language: 'eng', isbn: fakeIsbn(20) })]);
     expect([...dup]).toEqual(['copie']);
@@ -99,6 +109,60 @@ describe('ajout groupé', () => {
     expect(db.raw.prepare("SELECT * FROM reading_sessions WHERE id = 'sess-1'").get()).toEqual(before);
     expect(await getVolume(db, 'tome-existant')).toEqual(existingBefore);
     expect(db.raw.prepare('SELECT count(*) n FROM series').get()).toEqual({ n: 2 });
+  });
+
+  it('mention de provenance et de date enregistrée avec chaque couverture importée, jamais sans image', async () => {
+    const db = createTestDb();
+    await importBatch(
+      db,
+      {
+        items: [vol(30, { coverSource: 'bnf' }), vol(31, { coverSource: 'openlibrary' }), vol(32, { coverSource: 'bnf' })],
+        series: { kind: 'none' },
+        author: 'Auteur Fictif',
+        newId: ids(),
+        nowIso: NOW,
+      },
+      fakeCovers(['/32.jpg']),
+    );
+    const rows = db.raw.prepare('SELECT volume_label, cover_path, cover_credit FROM volumes ORDER BY sort_index').all() as { cover_path: string | null; cover_credit: string | null }[];
+    expect(rows[0]?.cover_credit).toBe('Couverture : Bibliothèque nationale de France, récupérée le 12/11/2026');
+    expect(rows[1]?.cover_credit).toBe('Couverture : Open Library (Internet Archive), récupérée le 12/11/2026');
+    expect(rows[2]).toMatchObject({ cover_path: null, cover_credit: null });
+  });
+
+  it('mention effacée quand l’utilisateur remplace ou retire la couverture ; conservée sinon', async () => {
+    const db = createTestDb();
+    await createVolume(db, 'v', { title: 'Arc', author: 'Auteur Fictif', coverPath: 'covers/a.jpg', coverCredit: 'Couverture : BnF' }, NOW);
+    await updateVolume(db, 'v', { title: 'Arc modifié', author: 'Auteur Fictif' }, NOW);
+    expect((await getVolume(db, 'v'))?.coverCredit).toBe('Couverture : BnF');
+    await updateVolume(db, 'v', { title: 'Arc', author: 'Auteur Fictif', coverPath: 'covers/photo.jpg' }, NOW);
+    expect((await getVolume(db, 'v'))?.coverCredit).toBeNull();
+    await createVolume(db, 'w', { title: 'Sans image', author: 'Auteur Fictif', coverCredit: 'Couverture : BnF' }, NOW);
+    expect((await getVolume(db, 'w'))?.coverCredit).toBeNull();
+  });
+
+  it('sélection revérifiée après relecture : même tome, même langue, deux ISBN → un seul ajouté ; autre série → gardé', async () => {
+    const db = createTestDb();
+    const r = await importBatch(
+      db,
+      {
+        items: [vol(3), vol(3, { id: 'relie', isbn: fakeIsbn(33) }), vol(3, { id: 'autre-serie', isbn: fakeIsbn(34), seriesTitle: 'Saga fictive annexe' })],
+        series: { kind: 'none' },
+        author: 'Auteur Fictif',
+        newId: ids(),
+        nowIso: NOW,
+      },
+      fakeCovers(),
+    );
+    expect(r.added).toHaveLength(2);
+    expect(r.skippedDuplicates).toHaveLength(1);
+  });
+
+  it('images temporaires du cache supprimées après copie', async () => {
+    const covers = { ...fakeCovers(), pending: [] as string[] };
+    const ops = { ...covers, discardPending: (u: string) => covers.pending.push(u) };
+    await importBatch(createTestDb(), { items: [vol(50), vol(51)], series: { kind: 'none' }, author: 'Auteur Fictif', newId: ids(), nowIso: NOW }, ops);
+    expect(covers.pending).toEqual(['cache://https://covers.example.com/50.jpg', 'cache://https://covers.example.com/51.jpg']);
   });
 
   it('série existante choisie : tomes rattachés, aucune nouvelle série', async () => {

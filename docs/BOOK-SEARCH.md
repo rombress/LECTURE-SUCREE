@@ -23,14 +23,14 @@
 | **Open Library** (`search.json`, `/works/…/editions.json`, couvertures) | Non | Gratuit | 1 requête/s sans identification. Couvertures par identifiant non limitées ; par ISBN, 100 par 5 min et par IP. « Pas de téléchargement massif » | ✅ Éditions anglaises et couvertures |
 | **Google Books API** | **Oui, obligatoire** (sans clé : HTTP 429, quota de 0, constaté) | Non vérifié | Clé **interdite dans un projet open source**, copie permanente du contenu interdite au-delà de l'en-tête de cache, « powered by Google » et lien vers Google Books obligatoires sur chaque résultat | ❌ Écartée (D47) |
 | **AniList** (titres alternatifs, format) | Non | Gratuit | Interdit aux services « de même nature », dont les « list or tracker services » | ❌ Écartée (D48) |
-| **BnF**, service de couvertures | ? | ? | Documentation injoignable (api.bnf.fr, DNS en échec) ; l'URL essayée renvoie une erreur 500 | ⏳ Piste à revoir |
+| **BnF**, service Couvertures (bêta, février 2026) | Non | Gratuit | Licence Ouverte. **Provenance et date de récupération à mentionner.** Une notice sans couverture répond **HTTP 500** (documenté, ce n'est pas une panne). HEAD refusé (405). URL susceptible de changer (bêta) | ✅ **Prioritaire pour les éditions françaises**, par l'ark de la notice |
 
 Identification envoyée aux catalogues : `LectureSucree/0.4 (application de lecture personnelle, iOS)`. **Aucune adresse e-mail** n'est envoyée, contrairement à ce qu'Open Library suggère. Le seul contenu transmis est le **texte de la recherche**.
 
 ## 3. Fonctionnement
 
 1. **Requêtes en parallèle**, avec un délai maximal par source (BnF 20 s, Open Library 15 s). En cas d'échec réseau passager, une seule nouvelle tentative a lieu. Une source en panne n'empêche pas d'afficher l'autre : l'état de chaque source est affiché.
-2. **BnF** : la requête porte sur le titre ou l'auteur, et seulement sur les imprimés (`bib.doctype any "a"`). On lit au plus 100 notices UNIMARC, qui donnent :
+2. **BnF** : la requête porte sur tous les mots dans l'ensemble de la notice (`bib.anywhere`), et seulement sur les imprimés (`bib.doctype any "a"`). On lit au plus 100 notices UNIMARC, qui donnent :
    - la série et le numéro (461$v, 225$v, 200$h) ;
    - la pagination (215) ;
    - l'ISBN (010) ;
@@ -44,8 +44,8 @@ Identification envoyée aux catalogues : `LectureSucree/0.4 (application de lect
 5. **Fusion par ISBN uniquement.** Une même édition décrite par les deux catalogues est fusionnée : la couverture d'Open Library peut alors compléter la notice BnF. Deux éditions différentes ne sont **jamais** mélangées.
 6. **Ordre** : français, puis anglais, puis autres langues. Les light novels passent avant les formats « non précisés ». Les mangas et autres formats sont **masqués par défaut** : un bouton les affiche, avec leur nombre.
 7. **Avant l'ajout**, l'édition exacte est relue :
-   - **Open Library** : on choisit l'édition imprimée de la même langue (par son ISBN si possible). Pages, ISBN, éditeur, couverture et série viennent alors **tous** de cette édition.
-   - **BnF** : on cherche la couverture du même ISBN sur Open Library, et son existence est vérifiée (requête HEAD).
+   - **Open Library** : l'édition affichée est retrouvée par son ISBN. Si c'est un ebook, elle est remplacée par l'imprimée **de la même langue connue**, et l'écran le signale (« ISBN différent »). Si l'ISBN affiché est introuvable ou la langue inconnue, aucune autre édition n'est choisie. Pages, ISBN, éditeur, couverture et série viennent **tous** de l'édition retenue.
+   - **BnF** : on demande d'abord la couverture **de cette notice** au service Couvertures de la BnF, par son ark. La miniature (environ 5 Ko) sert de test : 200 = trouvée, 500 = absente, erreur réseau = « non vérifiée ». En cas d'absence, on essaie la couverture du **même ISBN** sur Open Library.
 8. **Couverture** : elle est téléchargée en HTTPS (le code natif refuse toute réponse hors 2xx). Les fichiers de moins de 2 Ko sont refusés. L'image est normalisée comme une photo : JPEG de 900 px au plus. Elle n'est copiée dans le stockage privé qu'au moment de l'ajout.
 
 ### Format (light novel, manga, autre)
@@ -73,8 +73,12 @@ Un doublon est décoché, signalé, et revérifié au moment de l'ajout.
 
 ## 4. Limites constatées (recherches réelles du 2026-11-12)
 
-1. **Couvertures des éditions françaises : presque toujours absentes.** La BnF n'en fournit pas par API, et Open Library n'en a aucune pour les ISBN français testés (404). Les éditions anglaises en ont souvent. **Parade** : choisir l'image dans Photos depuis la fiche, comme aujourd'hui.
+1. **Couvertures françaises : selon les notices BnF.** Essai du 2026-11-12 sur le service Couvertures :
+   - **série 2 : trouvées pour les 5 tomes français testés** (et pour le manga), en 878×1350 px. Elles correspondent bien à l'édition (vérifié visuellement sur un tome) ;
+   - **série 1 : aucune** sur les 10 tomes testés (HTTP 500), ni sur Open Library.
+   Quand il n'y a pas de couverture, on garde l'import manuel depuis Photos.
 2. **Une des trois séries de test n'a aucune notice à la BnF** : seule l'édition anglaise est trouvée.
+3. **Tomes dont la notice ne contient pas les mots cherchés.** Par exemple, le titre anglais de la série est absent des notices françaises de certains tomes. Ces tomes n'apparaissent qu'avec « nom de la série + auteur », le titre du tome ou l'ISBN, ce que l'écran suggère. Une notice sans auteur n'est pas trouvée par « série + auteur ».
 3. **Open Library, éditions anglaises** :
    - la langue manque souvent sur l'édition ;
    - certains titres n'ont pas de numéro (« Titre » seul) ;
@@ -91,6 +95,8 @@ Un doublon est décoché, signalé, et revérifié au moment de l'ajout.
 8. **Titres alternatifs** : seulement ceux que fournissent les catalogues (titre original de l'œuvre sur Open Library, variantes 510/517 à la BnF). Une recherche par titre japonais n'est fiable que sur Open Library.
 
 ## 5. Données et confidentialité
+
+- **Mention de provenance des couvertures (migration v3, colonne `cover_credit`)** : « Couverture : Bibliothèque nationale de France, récupérée le JJ/MM/AAAA », ou Open Library. Elle est affichée sous la couverture, sur la fiche du livre. Elle est **effacée automatiquement** si la couverture est remplacée ou retirée, pour ne jamais rester attachée à une autre image (testé).
 
 - Migration **v2** : ajout de 4 colonnes facultatives (`isbn`, `publisher`, `language`, `source_ref`) et d'un index. **Aucune ligne existante n'est réécrite.** Un test vérifie qu'une base v1 avec séries, tomes, sessions, audio et transcriptions est intacte après la migration.
 - L'ajout ne fait que des **INSERT** ; les livres, séries, audios et transcriptions existants ne sont pas touchés (testé).

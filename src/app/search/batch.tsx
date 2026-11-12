@@ -1,6 +1,6 @@
 import { randomUUID } from 'expo-crypto';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, Stack } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Chip, EmptyState, Field, SectionTitle } from '@/components/ui';
@@ -13,7 +13,7 @@ import { enrichCandidate, OL_SPACING_MS } from '@/features/bookSearch/search';
 import { appHttp, searchSession } from '@/features/bookSearch/session';
 import { normalizeForMatch } from '@/features/bookSearch/text';
 import { languageLabel, type BookCandidate } from '@/features/bookSearch/types';
-import { discardCover, downloadCover, persistCover } from '@/features/covers/coverStore';
+import { discardCover, discardPendingCover, downloadCover, persistCover } from '@/features/covers/coverStore';
 import { log } from '@/services/log';
 import { useTheme } from '@/theme/ThemeProvider';
 import { spacing } from '@/theme/tokens';
@@ -44,6 +44,13 @@ export default function BatchImportScreen() {
   const [existingSeriesId, setExistingSeriesId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'review' });
   const [error, setError] = useState<string | null>(null);
+  // Annulé si l'écran est quitté pendant la préparation (aucun ajout partiel :
+  // l'écriture en base, elle, est une transaction unique).
+  const abortRef = useRef(new AbortController());
+  useEffect(() => {
+    const ctrl = abortRef.current;
+    return () => ctrl.abort();
+  }, []);
 
   const inSelectionDup = useMemo(() => duplicatesWithinSelection(items), [items]);
 
@@ -100,25 +107,29 @@ export default function BatchImportScreen() {
       }
       series = { kind: 'existing', seriesId: existingSeriesId };
     }
+    const signal = abortRef.current.signal;
     try {
       // 1. Édition exacte de chaque tome (pages, ISBN, couverture de la même édition).
       const http = appHttp();
       const enriched: BookCandidate[] = [];
       for (const [i, c] of chosen.entries()) {
         setPhase({ kind: 'working', done: i, total: chosen.length, step: 'Lecture des détails des éditions' });
-        enriched.push(await enrichCandidate(c, http));
+        enriched.push(await enrichCandidate(c, http, signal));
         if (c.source === 'openlibrary' || !c.coverUrl) await new Promise((r) => setTimeout(r, OL_SPACING_MS));
+        // Écran quitté pendant la préparation : rien n'est ajouté.
+        if (signal.aborted) return;
       }
       setPhase({ kind: 'working', done: chosen.length, total: chosen.length, step: 'Téléchargement des couvertures et ajout' });
       // 2. Ajout : doublons revérifiés, une seule transaction.
       const report = await importBatch(
         db,
         { items: enriched, series, author: author.trim(), newId: randomUUID, nowIso: new Date().toISOString() },
-        { download: downloadCover, persist: persistCover, discard: discardCover },
+        { download: downloadCover, persist: persistCover, discard: discardCover, discardPending: discardPendingCover },
       );
       log.info('book_search.added', { count: report.added.length, duplicates: report.skippedDuplicates.length, coverFailures: report.coverFailures });
       setPhase({ kind: 'done', report });
     } catch {
+      if (signal.aborted) return;
       log.error('book_search.batch_failed');
       setError('L’ajout a échoué. Rien n’a été enregistré. Réessayez.');
       setPhase({ kind: 'review' });
@@ -173,6 +184,8 @@ export default function BatchImportScreen() {
   const working = phase.kind === 'working';
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* Pendant l'ajout, pas de retour par geste ni par bouton : l'opération va au bout. */}
+      <Stack.Screen options={{ gestureEnabled: !working, headerBackVisible: !working }} />
       <Text style={{ color: colors.textSecondary }}>
         Vérifiez les tomes : seuls les tomes cochés seront ajoutés, dans l’ordre des numéros. La numérotation est celle de chaque édition ;
         les numérotations japonaise, anglaise et française peuvent différer.

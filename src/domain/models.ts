@@ -67,6 +67,8 @@ export interface Volume {
   language: string | null; // ISO 639-2 (« fre », « eng »)
   /** Notice d'origine si le livre a été importé (« bnf:ark:/… », « openlibrary:OL…M »). */
   sourceRef: string | null;
+  /** Provenance et date d'une couverture importée (schéma v3) ; null pour une image choisie à la main. */
+  coverCredit: string | null;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
 }

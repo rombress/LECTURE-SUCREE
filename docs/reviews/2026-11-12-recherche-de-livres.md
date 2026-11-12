@@ -91,3 +91,7 @@ Il faut deux parcours : ajouter un livre, et ajouter plusieurs tomes en une fois
 7. Le parcours d'ajout groupé (auteur commun modifiable, série nouvelle ou existante, doublons décochés, avertissement en cas de langues ou d'éditeurs mélangés) te paraît-il sûr ? Manque-t-il un garde-fou ?
 
 Merci de distinguer ce que tu sais avec certitude de ce que tu supposes.
+
+---
+
+**Mise à jour du 2026-11-12, avant envoi** : le service Couvertures de la BnF (bêta, février 2026, sans clé) a été étudié et intégré en priorité pour les éditions françaises. Il est interrogé par l'ark de la notice. Un HTTP 500 signifie « pas de couverture ». La provenance et la date sont enregistrées (migration v3). Essais réels : la série 2 a ses couvertures françaises (5/5), la série 1 aucune (0/10). La question 3 porte donc surtout sur la série 1 : connais-tu une autre source gratuite et réutilisable pour ses couvertures ?

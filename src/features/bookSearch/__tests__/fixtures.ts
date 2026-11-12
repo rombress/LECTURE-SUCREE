@@ -33,6 +33,8 @@ export function candidate(over: Partial<BookCandidate> = {}): BookCandidate {
     isbn: fakeIsbn(1),
     pageCount: 300,
     coverUrl: null,
+    coverSource: null,
+    bnfArk: null,
     physical: '1 vol. (300 p.) ; 21 cm',
     format: 'light_novel',
     formatReasons: [],

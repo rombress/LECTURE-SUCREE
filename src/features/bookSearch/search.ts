@@ -3,7 +3,7 @@
  * Une source en panne n'empêche pas d'afficher les résultats de l'autre ;
  * l'état de chaque source est rendu pour être affiché.
  */
-import { buildBnfUrl, parseBnfResponse } from './bnf';
+import { bnfCoverUrl, buildBnfUrl, parseBnfResponse } from './bnf';
 import { describeHttpError, HttpError, type HttpClient } from './http';
 import {
   applyEdition,
@@ -105,12 +105,22 @@ export async function enrichCandidate(c: BookCandidate, http: HttpClient, signal
       return { ...c, warnings: [...c.warnings, 'Détails de l’édition non récupérés (réseau)'] };
     }
   }
+  const warnings = [...c.warnings];
+  // 1. Couverture BnF de CETTE notice (prioritaire pour les éditions françaises).
+  //    La miniature (≈ 5 Ko) sert de test : la BnF refuse HEAD (405) et répond
+  //    500 quand la notice n'a pas de couverture (documenté) → « missing ».
+  if (c.bnfArk) {
+    const probe = await http.probeImage(bnfCoverUrl(c.bnfArk, 'thumb'), { method: 'GET', signal });
+    if (probe === 'found') return { ...c, coverUrl: bnfCoverUrl(c.bnfArk, 'large'), coverSource: 'bnf', enriched: true };
+    if (probe === 'unreachable') warnings.push('Couverture BnF non vérifiée (réseau)');
+  }
+  // 2. Sinon, couverture du MÊME ISBN sur Open Library.
   if (!c.coverUrl && c.isbn) {
     const url = olCoverByIsbn(c.isbn);
-    if (await http.imageExists(url, { signal })) return { ...c, coverUrl: url, enriched: true };
-    return { ...c, enriched: true, warnings: [...c.warnings, 'Pas de couverture trouvée pour cette édition'] };
+    if ((await http.probeImage(url, { signal })) === 'found') return { ...c, coverUrl: url, coverSource: 'openlibrary', enriched: true, warnings };
   }
-  return { ...c, enriched: true, warnings: c.coverUrl ? c.warnings : [...c.warnings, 'Pas de couverture trouvée pour cette édition'] };
+  if (!c.coverUrl) warnings.push('Pas de couverture trouvée pour cette édition');
+  return { ...c, enriched: true, warnings };
 }
 
 /** Pause entre deux requêtes Open Library (limite documentée : 1 requête/s). */

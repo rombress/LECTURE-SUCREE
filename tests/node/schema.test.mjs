@@ -129,7 +129,7 @@ test('tri chronologique des sessions d’un tome (base des exports)', () => {
   assert.deepEqual(ids, ['a', 'b', 'c']);
 });
 
-test('migration v1 → v2 : données existantes intactes, nouvelles colonnes vides', () => {
+test('migrations v1 → dernière version : données existantes intactes, nouvelles colonnes vides', () => {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   const [v1, ...rest] = MIGRATIONS;
@@ -159,6 +159,8 @@ test('migration v1 → v2 : données existantes intactes, nouvelles colonnes vid
   assert.equal(volAfter.publisher, null);
   assert.equal(volAfter.language, null);
   assert.equal(volAfter.source_ref, null);
+  assert.equal(volAfter.cover_credit, null);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, MIGRATIONS.length);
   assert.deepEqual(db.prepare("SELECT * FROM reading_sessions WHERE id = 'sess1'").get(), sessBefore);
   assert.equal(db.prepare("SELECT count(*) n FROM sessions_fts WHERE sessions_fts MATCH 'fictive'").get().n, 1);
   // ISBN : 13 caractères exactement (normalisé par l'app).

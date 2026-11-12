@@ -41,7 +41,10 @@ Types : **local** = Windows 11, Node 24.20.0, npm 11.19.0 · **CI** = GitHub Act
 | L2 | Nouveaux tests | local | ✅ | Données fictives uniquement. 80 tests Jest (ISBN, numéros de tome, format, BnF, Open Library, fusion et classement, recherche et erreurs réseau, doublons, ajout groupé sur un vrai SQLite) + 1 test Node (migration v1 → v2 avec données) |
 | L3 | Mutations (4 défauts réintroduits) | local | ✅ | Tous détectés : couverture empruntée à une autre édition, couvertures non nettoyées après échec, sujets « manga » d'Open Library, doublons ignorés |
 | L4 | Essai réel contre la BnF et Open Library (3 séries, depuis le PC) | réseau | ✅ | Détail dans `private/book-search-live.txt` (hors dépôt). Constats dans [BOOK-SEARCH.md](BOOK-SEARCH.md) §4. Trois défauts trouvés ainsi, puis corrigés : light novels classés mangas (sujets Open Library), mauvais auteur latin deviné, couvertures annoncées sans vérification |
-| L5 | Migration v2 sur l'iPhone | appareil | ⏳ | J1 |
+| L5 | Migrations v2 + v3 sur l'iPhone | appareil | ⏳ | J1 |
+| L6 | Service Couvertures BnF, essai réel (2026-11-12) | réseau | ✅ | Série 2 : 5/5 tomes français trouvés (878×1350 px, image conforme à l'édition) ; série 1 : 0/10 (HTTP 500), aucune couverture Open Library non plus. HEAD refusé (405) : test par la miniature |
+| L7 | Relecture indépendante (agent séparé) | local | ✅ | 4 défauts importants et 3 mineurs, tous corrigés : autre édition retenue sans le dire, ajout groupé non annulé en quittant l'écran, doublons de sélection non revérifiés après relecture, hors-série pris pour le tome de même numéro, images du cache non supprimées, message d'erreur trompeur, ISBN terminé par X impossible à saisir. Migration v1 → v2 et préservation des données : rien à signaler |
+| L8 | Après corrections | local | ✅ | `verify` : **204 tests Jest** (+1 ignoré) + 24 Node ; `expo-doctor` 20/20 ; bundle iOS 3,1 Mo ; 4 nouvelles mutations toutes détectées |
 
 ## Transcription : durcissement (0.3.1, build 5) — 2026-11-11
 

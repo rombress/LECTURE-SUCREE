@@ -32,6 +32,8 @@ export function mergeByIsbn(lists: readonly BookCandidate[][]): BookCandidate[] 
         sources: [...new Set([...a.sources, ...c.sources])],
         altTitles: [...new Set([...a.altTitles, ...c.altTitles, ...(c.title !== a.title ? [c.title] : [])])],
         coverUrl: a.coverUrl ?? c.coverUrl,
+        coverSource: a.coverUrl ? a.coverSource : c.coverSource,
+        bnfArk: a.bnfArk ?? c.bnfArk,
         pageCount: a.pageCount ?? c.pageCount,
         publisher: a.publisher ?? c.publisher,
         language: a.language ?? c.language,

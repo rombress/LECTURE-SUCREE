@@ -146,9 +146,19 @@ ALTER TABLE volumes ADD COLUMN source_ref TEXT;
 CREATE INDEX idx_volumes_isbn ON volumes(isbn) WHERE isbn IS NOT NULL;
 `;
 
+/**
+ * V3 — Provenance et date de récupération d'une couverture importée
+ * (exigées par les conditions de réutilisation de la BnF). Colonne
+ * facultative ajoutée ; aucune ligne existante n'est réécrite.
+ */
+const V3 = `
+ALTER TABLE volumes ADD COLUMN cover_credit TEXT;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'schema initial V1', sql: V1 },
   { version: 2, name: 'métadonnées d’édition (ISBN, éditeur, langue, notice)', sql: V2 },
+  { version: 3, name: 'provenance des couvertures importées', sql: V3 },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

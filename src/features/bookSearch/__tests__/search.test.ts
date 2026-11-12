@@ -41,9 +41,10 @@ function fakeHttp(route: Route): HttpClient & { calls: string[] } {
       if (r instanceof Error) throw r;
       return r;
     },
-    async imageExists(url) {
-      calls.push(`HEAD ${url}`);
-      return url.includes(fakeIsbn(1));
+    async probeImage(url, opts) {
+      calls.push(`${opts?.method ?? 'HEAD'} ${url}`);
+      if (url.includes('openapi.bnf.fr')) return url.includes('cbAVEC') ? 'found' : url.includes('cbRESEAU') ? 'unreachable' : 'missing';
+      return url.includes(fakeIsbn(1)) ? 'found' : 'missing';
     },
   };
 }
@@ -111,8 +112,44 @@ describe('recherche combinée', () => {
   });
 });
 
+describe('couvertures BnF (service Couvertures, par ark)', () => {
+  it('couverture trouvée sur la notice : prioritaire, grande taille, source BnF', async () => {
+    const http = fakeHttp(ok);
+    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbAVEC', isbn: fakeIsbn(1) }), http);
+    expect(e.coverSource).toBe('bnf');
+    expect(e.coverUrl).toBe('https://openapi.bnf.fr/couverture/image/image/recupererImage?idArk=ark:/12148/cbAVEC&couverture=1&taille=originale&largeur=900&hauteur=1350');
+    // Test d'existence en GET (la BnF refuse HEAD) ; Open Library non sollicité.
+    expect(http.calls).toEqual(['GET https://openapi.bnf.fr/couverture/image/image/recupererImage?idArk=ark:/12148/cbAVEC&couverture=1']);
+  });
+
+  it('HTTP 500 (notice sans couverture) : pas une panne, repli sur Open Library avec le MÊME ISBN', async () => {
+    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbSANS', isbn: fakeIsbn(1) }), fakeHttp(ok));
+    expect(e).toMatchObject({ coverSource: 'openlibrary', coverUrl: expect.stringContaining(fakeIsbn(1)) });
+    expect(e.warnings.join(' ')).not.toMatch(/réseau/);
+  });
+
+  it('aucune couverture nulle part : signalé, rien d’emprunté à une autre édition', async () => {
+    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbSANS', isbn: fakeIsbn(4) }), fakeHttp(ok));
+    expect(e.coverUrl).toBeNull();
+    expect(e.coverSource).toBeNull();
+    expect(e.warnings).toContain('Pas de couverture trouvée pour cette édition');
+  });
+
+  it('BnF injoignable : avertissement « non vérifiée (réseau) »', async () => {
+    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbRESEAU', isbn: fakeIsbn(4) }), fakeHttp(ok));
+    expect(e.warnings).toContain('Couverture BnF non vérifiée (réseau)');
+  });
+
+  it('notice déjà illustrée par Open Library (même ISBN) : la couverture BnF reste prioritaire si elle existe', async () => {
+    const c = candidate({ bnfArk: 'ark:/12148/cbAVEC', coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg', coverSource: 'openlibrary' });
+    expect((await enrichCandidate(c, fakeHttp(ok))).coverSource).toBe('bnf');
+    const sans = candidate({ bnfArk: 'ark:/12148/cbSANS', coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg', coverSource: 'openlibrary' });
+    expect(await enrichCandidate(sans, fakeHttp(ok))).toMatchObject({ coverSource: 'openlibrary', coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg' });
+  });
+});
+
 describe('détails avant ajout', () => {
-  it('notice BnF : couverture du MÊME ISBN vérifiée avant d’être proposée', async () => {
+  it('notice sans ark : couverture du MÊME ISBN vérifiée avant d’être proposée', async () => {
     const withCover = await enrichCandidate(candidate({ isbn: fakeIsbn(1) }), fakeHttp(ok));
     expect(withCover.coverUrl).toContain(fakeIsbn(1));
     const without = await enrichCandidate(candidate({ isbn: fakeIsbn(4) }), fakeHttp(ok));
@@ -122,11 +159,16 @@ describe('détails avant ajout', () => {
 
   it('Open Library : l’édition imprimée exacte remplace pages, ISBN et couverture', async () => {
     const editions = JSON.stringify({
-      entries: [{ key: '/books/OL9M', title: 'Saga, Vol. 1', physical_format: 'Paperback', isbn_13: [fakeIsbn(5)], number_of_pages: 222, covers: [55], languages: [{ key: '/languages/eng' }] }],
+      entries: [
+        // L'édition affichée (ebook) + l'imprimée de la même langue.
+        { key: '/books/OL8M', title: 'Saga, Vol. 1', physical_format: 'ebook', isbn_13: [fakeIsbn(3)], languages: [{ key: '/languages/eng' }] },
+        { key: '/books/OL9M', title: 'Saga, Vol. 1', physical_format: 'Paperback', isbn_13: [fakeIsbn(5)], number_of_pages: 222, covers: [55], languages: [{ key: '/languages/eng' }] },
+      ],
     });
     const c = candidate({ source: 'openlibrary', sources: ['openlibrary'], olWorkKey: '/works/OL1W', language: 'eng', isbn: fakeIsbn(3), pageCount: null });
     const e = await enrichCandidate(c, fakeHttp(() => editions));
     expect(e).toMatchObject({ isbn: fakeIsbn(5), pageCount: 222, coverUrl: 'https://covers.openlibrary.org/b/id/55-L.jpg', enriched: true });
+    expect(e.warnings.join(' ')).toMatch(/ISBN différent/);
   });
 
   it('Open Library injoignable : résultat d’origine gardé, avec un avertissement', async () => {
@@ -171,6 +213,18 @@ describe('client HTTP', () => {
     }).getText('u');
     expect(headers?.['User-Agent']).toMatch(/^LectureSucree\//);
     expect(headers?.['User-Agent']).not.toMatch(/@/);
+  });
+
+  it('test d’image : 500 → absente, erreur réseau → injoignable, image → trouvée', async () => {
+    const img = { ok: true, status: 200, headers: { get: () => 'image/jpeg' }, text: async () => '' };
+    expect(await createHttpClient(async () => img).probeImage('u', { method: 'GET' })).toBe('found');
+    expect(await createHttpClient(async () => res(500)).probeImage('u')).toBe('missing');
+    expect(await createHttpClient(async () => ({ ...img, headers: { get: () => 'text/html' } })).probeImage('u')).toBe('missing');
+    expect(
+      await createHttpClient(async () => {
+        throw new TypeError('Network request failed');
+      }).probeImage('u'),
+    ).toBe('unreachable');
   });
 
   it('messages affichables', () => {

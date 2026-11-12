@@ -33,24 +33,30 @@ export const USER_AGENT = 'LectureSucree/0.4 (application de lecture personnelle
 
 export interface HttpClient {
   getText(url: string, opts?: { timeoutMs?: number; signal?: AbortSignal }): Promise<string>;
-  /** L'URL désigne-t-elle une image existante ? (requête HEAD, redirections suivies) */
-  imageExists(url: string, opts?: { timeoutMs?: number; signal?: AbortSignal }): Promise<boolean>;
+  /**
+   * L'URL désigne-t-elle une image existante ? found / missing (réponse hors
+   * 2xx, dont le 500 « pas de couverture » de la BnF, ou pas une image) /
+   * unreachable (réseau). GET pour les services qui refusent HEAD (BnF : 405).
+   */
+  probeImage(url: string, opts?: { method?: 'HEAD' | 'GET'; timeoutMs?: number; signal?: AbortSignal }): Promise<ImageProbe>;
 }
+
+export type ImageProbe = 'found' | 'missing' | 'unreachable';
 
 export function createHttpClient(fetchImpl: FetchLike): HttpClient {
   return {
-    async imageExists(url, opts = {}) {
+    async probeImage(url, opts = {}) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 10000);
       const onCancel = () => controller.abort();
       opts.signal?.addEventListener('abort', onCancel);
       try {
-        const res = await fetchImpl(url, { method: 'HEAD', headers: { 'User-Agent': USER_AGENT }, signal: controller.signal });
+        const res = await fetchImpl(url, { method: opts.method ?? 'HEAD', headers: { 'User-Agent': USER_AGENT }, signal: controller.signal });
         const type = res.headers?.get('content-type') ?? '';
-        return res.ok && (type === '' || type.startsWith('image/'));
+        return res.ok && (type === '' || type.startsWith('image/')) ? 'found' : 'missing';
       } catch {
         if (opts.signal?.aborted) throw new HttpError('cancelled');
-        return false;
+        return 'unreachable';
       } finally {
         clearTimeout(timer);
         opts.signal?.removeEventListener('abort', onCancel);

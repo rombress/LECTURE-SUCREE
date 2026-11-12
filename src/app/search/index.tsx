@@ -150,7 +150,8 @@ export default function SearchBooksScreen() {
           result && result.candidates.length > 0 ? (
             <Text style={[styles.credits, { color: colors.textMuted }]}>
               Données bibliographiques : Bibliothèque nationale de France (catalogue général, Licence Ouverte) et Open Library (Internet
-              Archive). Les catalogues peuvent être incomplets : un tome absent ici n’est pas forcément inexistant.
+              Archive). Couvertures BnF : service Couvertures du catalogue général. Les catalogues peuvent être incomplets : un tome absent
+              ici n’est pas forcément inexistant. Un tome manque ? Essayez « nom de la série + auteur », le titre du tome ou son ISBN.
             </Text>
           ) : undefined
         }

@@ -94,6 +94,9 @@ export default function VolumeScreen() {
         <View style={[styles.heroFade, { backgroundColor: colors.background }]} />
         <CoverArt title={volume.title} author={volume.author} label={volume.volumeLabel} width={150} coverPath={volume.coverPath} />
       </View>
+      {volume.coverPath && volume.coverCredit ? (
+        <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', paddingHorizontal: spacing.lg }}>{volume.coverCredit}</Text>
+      ) : null}
 
       <View style={styles.body}>
         {series ? (

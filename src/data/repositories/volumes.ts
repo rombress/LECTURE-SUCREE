@@ -20,6 +20,7 @@ interface VolumeRow {
   publisher: string | null;
   language: string | null;
   source_ref: string | null;
+  cover_credit: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +42,12 @@ export interface VolumeFormInput extends VolumeInput {
   publisher?: string | null;
   language?: string | null;
   sourceRef?: string | null;
+  /**
+   * Provenance de la couverture importée. Si `coverPath` change sans
+   * `coverCredit`, la mention est effacée : elle ne doit jamais rester
+   * attachée à une autre image (choisie dans Photos, par exemple).
+   */
+  coverCredit?: string | null;
 }
 
 export class ValidationError extends Error {
@@ -67,6 +74,7 @@ function toVolume(r: VolumeRow): Volume {
     publisher: r.publisher,
     language: r.language,
     sourceRef: r.source_ref,
+    coverCredit: r.cover_credit,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -130,10 +138,11 @@ export async function createVolume(db: DbLike, id: Id, input: VolumeFormInput, n
   const e = editionFields(input);
   await db.runAsync(
     `INSERT INTO volumes (id, series_id, title, author, volume_label, sort_index, page_count, current_page, status, description, cover_path,
-                          isbn, publisher, language, source_ref, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          isbn, publisher, language, source_ref, cover_credit, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, input.seriesId ?? null, n.title, n.author, n.volumeLabel, n.sortIndex, n.pageCount, n.currentPage, n.status, n.description, input.coverPath ?? null,
-     e.isbn ?? null, e.publisher ?? null, e.language ?? null, e.sourceRef ?? null, nowIso, nowIso],
+     e.isbn ?? null, e.publisher ?? null, e.language ?? null, e.sourceRef ?? null,
+     input.coverPath ? clean(input.coverCredit) : null, nowIso, nowIso],
   );
   const v = await getVolume(db, id);
   if (!v) throw new Error('Tome introuvable après création');
@@ -151,15 +160,22 @@ export async function updateVolume(db: DbLike, id: Id, input: VolumeFormInput, n
   const publisher = e.publisher === undefined ? current.publisher : e.publisher;
   const language = e.language === undefined ? current.language : e.language;
   const sourceRef = e.sourceRef === undefined ? current.sourceRef : e.sourceRef;
+  const coverCredit = !coverPath
+    ? null
+    : input.coverCredit !== undefined
+      ? clean(input.coverCredit)
+      : input.coverPath === undefined
+        ? current.coverCredit
+        : null;
   // Changer de série ne touche QUE series_id : les sessions restent liées au
   // tome par son identifiant, qui ne change jamais.
   const res = await db.runAsync(
     `UPDATE volumes
         SET series_id = ?, title = ?, author = ?, volume_label = ?, sort_index = ?, page_count = ?, current_page = ?,
-            status = ?, description = ?, cover_path = ?, isbn = ?, publisher = ?, language = ?, source_ref = ?, updated_at = ?
+            status = ?, description = ?, cover_path = ?, isbn = ?, publisher = ?, language = ?, source_ref = ?, cover_credit = ?, updated_at = ?
       WHERE id = ?`,
     [seriesId, n.title, n.author, n.volumeLabel, n.sortIndex, n.pageCount, n.currentPage, n.status, n.description, coverPath,
-     isbn, publisher, language, sourceRef, nowIso, id],
+     isbn, publisher, language, sourceRef, coverCredit, nowIso, id],
   );
   if (res.changes !== 1) throw new Error('Tome introuvable');
   const v = await getVolume(db, id);

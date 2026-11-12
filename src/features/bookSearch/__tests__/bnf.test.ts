@@ -44,7 +44,7 @@ const ENTITIES = bnfRecord({
 describe('BnF (SRU, UNIMARC)', () => {
   it('requête : ISBN exact, sinon titre OU auteur, imprimés seulement', () => {
     expect(buildBnfQuery('978-0-306-40615-7')).toBe('bib.isbn any "9780306406157"');
-    expect(buildBnfQuery('Saga "fictive"')).toBe('(bib.title all "Saga fictive" or bib.author all "Saga fictive") and bib.doctype any "a"');
+    expect(buildBnfQuery('Saga "fictive"')).toBe('bib.anywhere all "Saga fictive" and bib.doctype any "a"');
     expect(buildBnfUrl('saga')).toContain('recordSchema=unimarcxchange');
   });
 

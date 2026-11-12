@@ -1,9 +1,18 @@
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { COVER_RATIO, radius, spacing } from '@/theme/tokens';
 
+import { bnfCoverUrl } from './bnf';
 import { FORMAT_LABELS, languageLabel, SOURCE_LABELS, type BookCandidate } from './types';
+
+/** Vignette : couverture connue, sinon miniature BnF de CETTE notice (absente → cadre vide). */
+function thumbUrl(c: BookCandidate): string | null {
+  if (c.coverUrl && c.coverSource === 'openlibrary') return c.coverUrl.replace('-L.jpg', '-M.jpg');
+  if (c.bnfArk) return bnfCoverUrl(c.bnfArk, 'thumb');
+  return c.coverUrl;
+}
 
 /** Une édition trouvée : langue, édition, format et tome toujours visibles. */
 export function CandidateRow({
@@ -20,6 +29,8 @@ export function CandidateRow({
   onPress: () => void;
 }) {
   const { colors } = useTheme();
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const thumb = thumbFailed ? null : thumbUrl(c);
   const width = 52;
   const volume = c.volume ? `Tome ${c.volume.label}${c.volume.confident ? '' : ' (?)'}` : 'Tome non indiqué';
   const kind =
@@ -40,8 +51,12 @@ export function CandidateRow({
           {selected ? <Text style={{ color: colors.background, fontWeight: '800' }}>✓</Text> : null}
         </View>
       ) : null}
-      {c.coverUrl ? (
-        <Image source={{ uri: c.coverUrl.replace('-L.jpg', '-M.jpg') }} style={{ width, height: width / COVER_RATIO, borderRadius: radius.sm, backgroundColor: colors.border }} />
+      {thumb ? (
+        <Image
+          source={{ uri: thumb }}
+          onError={() => setThumbFailed(true)}
+          style={{ width, height: width / COVER_RATIO, borderRadius: radius.sm, backgroundColor: colors.border }}
+        />
       ) : (
         <View style={[styles.noCover, { width, height: width / COVER_RATIO, borderColor: colors.border }]}>
           <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: 'center' }}>sans couverture</Text>
