@@ -132,6 +132,23 @@ CREATE TRIGGER trg_sessions_fts_delete AFTER DELETE ON reading_sessions BEGIN
 END;
 `;
 
-export const MIGRATIONS: readonly Migration[] = [{ version: 1, name: 'schema initial V1', sql: V1 }];
+/**
+ * V2 — Importation de livres depuis les catalogues (BnF, Open Library).
+ * AJOUT de colonnes facultatives uniquement (ALTER TABLE … ADD COLUMN) :
+ * aucune ligne existante n'est réécrite, les livres déjà présents gardent
+ * NULL. `source_ref` garde la notice d'origine (ex. « bnf:ark:/12148/… »).
+ */
+const V2 = `
+ALTER TABLE volumes ADD COLUMN isbn TEXT CHECK (isbn IS NULL OR length(isbn) = 13);
+ALTER TABLE volumes ADD COLUMN publisher TEXT;
+ALTER TABLE volumes ADD COLUMN language TEXT;
+ALTER TABLE volumes ADD COLUMN source_ref TEXT;
+CREATE INDEX idx_volumes_isbn ON volumes(isbn) WHERE isbn IS NOT NULL;
+`;
+
+export const MIGRATIONS: readonly Migration[] = [
+  { version: 1, name: 'schema initial V1', sql: V1 },
+  { version: 2, name: 'métadonnées d’édition (ISBN, éditeur, langue, notice)', sql: V2 },
+];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

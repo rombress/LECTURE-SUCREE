@@ -128,3 +128,40 @@ test('tri chronologique des sessions d’un tome (base des exports)', () => {
     .map((r) => r.id);
   assert.deepEqual(ids, ['a', 'b', 'c']);
 });
+
+test('migration v1 → v2 : données existantes intactes, nouvelles colonnes vides', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON');
+  const [v1, ...rest] = MIGRATIONS;
+  db.exec('BEGIN');
+  db.exec(v1.sql);
+  db.exec('PRAGMA user_version = 1');
+  db.exec('COMMIT');
+  // Bibliothèque v1 fictive : série, tome avec couverture, session avec audio et transcription.
+  addSeries(db, 's1');
+  addVolume(db, 'v1', 's1');
+  db.prepare("UPDATE volumes SET cover_path = 'covers/v1.jpg', page_count = 300, volume_label = '2', sort_index = 2 WHERE id = 'v1'").run();
+  addSession(db, 'sess1', 'v1', 'transcription fictive');
+  db.prepare("UPDATE reading_sessions SET audio_path = 'audio/2026/sess1.m4a', audio_sha256 = 'abc' WHERE id = 'sess1'").run();
+  const volBefore = db.prepare("SELECT * FROM volumes WHERE id = 'v1'").get();
+  const sessBefore = db.prepare("SELECT * FROM reading_sessions WHERE id = 'sess1'").get();
+
+  for (const m of rest) {
+    db.exec('BEGIN');
+    db.exec(m.sql);
+    db.exec(`PRAGMA user_version = ${m.version}`);
+    db.exec('COMMIT');
+  }
+
+  const volAfter = db.prepare("SELECT * FROM volumes WHERE id = 'v1'").get();
+  for (const [k, v] of Object.entries(volBefore)) assert.equal(volAfter[k], v, `colonne ${k} modifiée`);
+  assert.equal(volAfter.isbn, null);
+  assert.equal(volAfter.publisher, null);
+  assert.equal(volAfter.language, null);
+  assert.equal(volAfter.source_ref, null);
+  assert.deepEqual(db.prepare("SELECT * FROM reading_sessions WHERE id = 'sess1'").get(), sessBefore);
+  assert.equal(db.prepare("SELECT count(*) n FROM sessions_fts WHERE sessions_fts MATCH 'fictive'").get().n, 1);
+  // ISBN : 13 caractères exactement (normalisé par l'app).
+  assert.throws(() => db.prepare("UPDATE volumes SET isbn = '123' WHERE id = 'v1'").run(), /CHECK/);
+  db.prepare("UPDATE volumes SET isbn = '9780306406157' WHERE id = 'v1'").run();
+});

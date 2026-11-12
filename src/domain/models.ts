@@ -61,6 +61,12 @@ export interface Volume {
   status: VolumeStatus;
   description: string | null;
   coverPath: string | null;
+  /** Édition (schéma v2) : null pour les livres saisis sans ces informations. */
+  isbn: string | null; // ISBN-13 normalisé
+  publisher: string | null;
+  language: string | null; // ISO 639-2 (« fre », « eng »)
+  /** Notice d'origine si le livre a été importé (« bnf:ark:/… », « openlibrary:OL…M »). */
+  sourceRef: string | null;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
 }

@@ -1,5 +1,6 @@
 import type { Id, Volume, VolumeStatus } from '@/domain/models';
 import { parseVolumeNumber, validateVolume, type VolumeInput } from '@/domain/validation';
+import { normalizeIsbn } from '@/domain/isbn';
 
 import type { DbLike } from '../db/types';
 
@@ -15,6 +16,10 @@ interface VolumeRow {
   status: VolumeStatus;
   description: string | null;
   cover_path: string | null;
+  isbn: string | null;
+  publisher: string | null;
+  language: string | null;
+  source_ref: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +36,11 @@ export interface VolumeFormInput extends VolumeInput {
   seriesId?: Id | null;
   /** undefined = inchangé (mise à jour) ; null = pas de couverture. */
   coverPath?: string | null;
+  /** Édition — undefined = inchangé (mise à jour) ; null = effacé. */
+  isbn?: string | null;
+  publisher?: string | null;
+  language?: string | null;
+  sourceRef?: string | null;
 }
 
 export class ValidationError extends Error {
@@ -53,6 +63,10 @@ function toVolume(r: VolumeRow): Volume {
     status: r.status,
     description: r.description,
     coverPath: r.cover_path,
+    isbn: r.isbn,
+    publisher: r.publisher,
+    language: r.language,
+    sourceRef: r.source_ref,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -80,6 +94,19 @@ function normalize(input: VolumeFormInput) {
   };
 }
 
+/** Champs d'édition : undefined conservé (= inchangé), texte vide → null, ISBN normalisé. */
+function editionFields(input: VolumeFormInput) {
+  const opt = (v: string | null | undefined) => (v === undefined ? undefined : clean(v));
+  let isbn: string | null | undefined;
+  if (input.isbn === undefined) isbn = undefined;
+  else {
+    const raw = clean(input.isbn);
+    isbn = raw ? normalizeIsbn(raw) : null;
+    if (raw && !isbn) throw new ValidationError({ isbn: 'ISBN invalide (10 ou 13 chiffres, clé de contrôle).' });
+  }
+  return { isbn, publisher: opt(input.publisher), language: opt(input.language), sourceRef: opt(input.sourceRef) };
+}
+
 /** Bibliothèque : tomes les plus récemment actifs d'abord. */
 export async function listVolumes(db: DbLike): Promise<VolumeWithStats[]> {
   const rows = await db.getAllAsync<VolumeRow & { session_count: number; last_session_at: string | null }>(
@@ -100,10 +127,13 @@ export async function getVolume(db: DbLike, id: Id): Promise<Volume | null> {
 
 export async function createVolume(db: DbLike, id: Id, input: VolumeFormInput, nowIso: string): Promise<Volume> {
   const n = normalize(input);
+  const e = editionFields(input);
   await db.runAsync(
-    `INSERT INTO volumes (id, series_id, title, author, volume_label, sort_index, page_count, current_page, status, description, cover_path, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, input.seriesId ?? null, n.title, n.author, n.volumeLabel, n.sortIndex, n.pageCount, n.currentPage, n.status, n.description, input.coverPath ?? null, nowIso, nowIso],
+    `INSERT INTO volumes (id, series_id, title, author, volume_label, sort_index, page_count, current_page, status, description, cover_path,
+                          isbn, publisher, language, source_ref, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, input.seriesId ?? null, n.title, n.author, n.volumeLabel, n.sortIndex, n.pageCount, n.currentPage, n.status, n.description, input.coverPath ?? null,
+     e.isbn ?? null, e.publisher ?? null, e.language ?? null, e.sourceRef ?? null, nowIso, nowIso],
   );
   const v = await getVolume(db, id);
   if (!v) throw new Error('Tome introuvable après création');
@@ -116,14 +146,20 @@ export async function updateVolume(db: DbLike, id: Id, input: VolumeFormInput, n
   if (!current) throw new Error('Tome introuvable');
   const seriesId = input.seriesId === undefined ? current.seriesId : input.seriesId;
   const coverPath = input.coverPath === undefined ? current.coverPath : input.coverPath;
+  const e = editionFields(input);
+  const isbn = e.isbn === undefined ? current.isbn : e.isbn;
+  const publisher = e.publisher === undefined ? current.publisher : e.publisher;
+  const language = e.language === undefined ? current.language : e.language;
+  const sourceRef = e.sourceRef === undefined ? current.sourceRef : e.sourceRef;
   // Changer de série ne touche QUE series_id : les sessions restent liées au
   // tome par son identifiant, qui ne change jamais.
   const res = await db.runAsync(
     `UPDATE volumes
         SET series_id = ?, title = ?, author = ?, volume_label = ?, sort_index = ?, page_count = ?, current_page = ?,
-            status = ?, description = ?, cover_path = ?, updated_at = ?
+            status = ?, description = ?, cover_path = ?, isbn = ?, publisher = ?, language = ?, source_ref = ?, updated_at = ?
       WHERE id = ?`,
-    [seriesId, n.title, n.author, n.volumeLabel, n.sortIndex, n.pageCount, n.currentPage, n.status, n.description, coverPath, nowIso, id],
+    [seriesId, n.title, n.author, n.volumeLabel, n.sortIndex, n.pageCount, n.currentPage, n.status, n.description, coverPath,
+     isbn, publisher, language, sourceRef, nowIso, id],
   );
   if (res.changes !== 1) throw new Error('Tome introuvable');
   const v = await getVolume(db, id);
