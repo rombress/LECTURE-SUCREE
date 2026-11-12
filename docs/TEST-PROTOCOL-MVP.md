@@ -9,7 +9,34 @@ Quatre niveaux, toujours rapportés **séparément** :
 
 Consigner chaque résultat dans [TEST-RESULTS.md](TEST-RESULTS.md) : date, version d'iOS, résultat, message exact en cas d'échec. Utiliser uniquement des **livres fictifs** pendant ces tests.
 
-## I. Protocole court de la transcription (0.3.1, build 5) — À FAIRE EN PREMIER
+## J. Recherche et importation de livres (0.4.0, build 6) — À FAIRE EN PREMIER
+
+**Avant de commencer** :
+- Installer la 0.4.0 **par-dessus** la 0.3.1, sans désinstaller.
+- La sauvegarde (lot 4) n'existe pas encore. Les livres ajoutés pendant ce test peuvent être supprimés ensuite.
+
+Utiliser tes trois séries de test. Pour chaque test, noter **OK / KO** et le message affiché.
+
+| # | Test | Résultat attendu |
+|---|---|---|
+| J1 | Lancer l'app, ouvrir la Bibliothèque puis Réglages → Diagnostic | Livres, séries, couvertures, sessions, audios et transcriptions **tous présents**. Diagnostic : « schéma v2/2 » |
+| J2 | ＋ → **Rechercher un livre** → la série n° 1, titre français | Éditions **françaises en tête**, light novels, numéros dans l'ordre. État des sources affiché (« BnF : N retenus · Open Library : N retenus »). Mangas masqués, avec leur nombre |
+| J3 | Toucher le chip de format (« Tous les formats ») | Les mangas et autres formats (coloriages…) apparaissent, marqués « Manga » ou « Autre format » |
+| J4 | Toucher une édition **française** | Fiche « Édition trouvée » : langue, éditeur, tome, source. Pages et ISBN remplis. Couverture probablement **absente**, avec un message (limite connue) |
+| J5 | Modifier un champ, puis **Ajouter** | Le livre s'ouvre avec les infos modifiées. Choisir une couverture dans Photos fonctionne toujours |
+| J6 | Rechercher la série n° 3 (aucune édition française dans les catalogues) | Éditions **anglaises** proposées, avec couvertures pour la plupart. Tome 14.5 et tomes sans numéro signalés |
+| J7 | « Ajouter plusieurs tomes » → cocher 4 tomes **dont un déjà ajouté** en J5 → Vérifier | Le doublon est **décoché** et marqué « Déjà dans la bibliothèque ». Ordre des numéros. Avertissement si langues ou éditeurs sont mélangés |
+| J8 | Choisir « Nouvelle série », corriger l'auteur si besoin, **Ajouter** | Progression « Lecture des détails… », puis bilan : N tomes ajoutés, doublon non ajouté, couvertures manquantes comptées. « Voir la série » : tomes dans l'ordre, couvertures présentes quand elles existent |
+| J9 | Série n° 2 en anglais : vérifier l'auteur proposé | S'il est en japonais, l'avertissement le dit et le champ « Auteur » permet de le corriger pour tous les tomes |
+| J10 | Rechercher un **ISBN** (celui d'un livre ajouté) | Un seul résultat : cette édition |
+| J11 | **Mode avion** → rechercher | « Pas de connexion », bouton « Ajouter à la main ». La bibliothèque reste consultable et l'ajout manuel fonctionne |
+| J12 | Recherche absurde (« zzqxw ») | « Aucun résultat » et proposition d'ajout manuel |
+| J13 | Fermer complètement l'app puis la rouvrir | Les livres importés et leurs couvertures sont toujours là, aussi en mode avion |
+| J14 | Enregistrer une session de 30 s sur un livre importé (transcription en direct) | Audio et transcription comme en 0.3.1 (contrôle de non-régression) |
+
+**À me rapporter** : chaque KO avec le message exact, et pour J2, J6 et J9 une capture d'écran (aucune donnée personnelle dessus).
+
+## I. Protocole court de la transcription (0.3.1, build 5) — validé le 2026-11-12
 
 Avec un **livre de test**, l'iPhone **réglé en français**, la transcription en direct activée (Réglages). Noter pour chaque test : OK / KO, et le message affiché.
 

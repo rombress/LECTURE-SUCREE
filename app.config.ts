@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'Lecture sucrée',
   slug: 'lecture-sucree',
   scheme: 'lecturesucree',
-  version: '0.3.1',
+  version: '0.4.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
@@ -34,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   platforms: ['ios'],
   ios: {
     bundleIdentifier: BUNDLE_ID,
-    buildNumber: '5',
+    buildNumber: '6',
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,

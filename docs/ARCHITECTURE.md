@@ -47,6 +47,7 @@ Principes :
 | Audio | expo-audio (enregistrement, arrière-plan, lecture) | Module officiel ; arrière-plan iOS (`UIBackgroundModes=audio`) et service de premier plan Android | ⏳ spike lot 1 |
 | Transcription live | expo-speech-recognition (moteurs natifs, sur l'appareil en priorité) | Gratuit, vrai temps réel, peut conserver l'audio capté | ⏳ spike lot 1 — voir [TRANSCRIPTION.md](TRANSCRIPTION.md) |
 | Transcription hors ligne (repli) | whisper.rn *(candidat)* | 100 % local et libre, même moteur sur les 2 plateformes | ⏳ non installé, à évaluer |
+| Recherche de livres | `fetch` vers la BnF (SRU) et Open Library, sans clé ni serveur | Gratuit, éditions françaises (BnF) et anglaises (Open Library) | ✅ essais réels depuis le PC ; ⏳ appareil — voir [BOOK-SEARCH.md](BOOK-SEARCH.md) |
 | Exports | `docx` (JS pur) + TXT/JSON + partage système | Aucun service externe | ⏳ lot Exports |
 | Tests | Jest (jest-expo) + `node:test` avec `node:sqlite` | Le second exécute le **vrai SQL** du schéma sous Windows | ✅ 38 tests |
 | CI / builds | GitHub Actions : ubuntu (CI + APK), macos-26 (IPA non signé) | Gratuit en dépôt public | ✅ syntaxe ; ⏳ 1er run |

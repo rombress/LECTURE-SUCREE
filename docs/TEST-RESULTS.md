@@ -26,6 +26,23 @@ Types : **local** = Windows 11, Node 24.20.0, npm 11.19.0 · **CI** = GitHub Act
 | 0.17 | APK installé sur Android | appareil | ⏸ V2 | Reporté (D16) |
 | 0.18 | IPA via AltServer, écran Diagnostic sur iPhone (permissions micro/voix + arrière-plan avec un compte gratuit) | appareil | ⏳ | Lot 0-bis |
 
+## Recherche de livres (0.4.0, build 6) — 2026-11-12
+
+| Niveau | Statut | Détail |
+|---|---|---|
+| 1. Bundle JS compilé | ✅ local | `tsc` 0 erreur ; ESLint 0 avertissement ; `expo-doctor` 20/20 ; bundle iOS 3,1 Mo |
+| 2. App native compilée | ⏳ | Aucun module natif ajouté (`fetch`, expo-file-system et expo-image-manipulator déjà présents). Il faut un push autorisé, puis `ios-ipa` |
+| 3. IPA installée | ⏳ | |
+| 4. Testée sur iPhone | ⏳ | Protocole J |
+
+| # | Test | Type | Statut | Détail |
+|---|---|---|---|---|
+| L1 | `npm run verify` | local | ✅ | **190 tests Jest réussis** (+ 1 ignoré : l'essai réseau, lancé sur demande) + **24 tests Node** |
+| L2 | Nouveaux tests | local | ✅ | Données fictives uniquement. 80 tests Jest (ISBN, numéros de tome, format, BnF, Open Library, fusion et classement, recherche et erreurs réseau, doublons, ajout groupé sur un vrai SQLite) + 1 test Node (migration v1 → v2 avec données) |
+| L3 | Mutations (4 défauts réintroduits) | local | ✅ | Tous détectés : couverture empruntée à une autre édition, couvertures non nettoyées après échec, sujets « manga » d'Open Library, doublons ignorés |
+| L4 | Essai réel contre la BnF et Open Library (3 séries, depuis le PC) | réseau | ✅ | Détail dans `private/book-search-live.txt` (hors dépôt). Constats dans [BOOK-SEARCH.md](BOOK-SEARCH.md) §4. Trois défauts trouvés ainsi, puis corrigés : light novels classés mangas (sujets Open Library), mauvais auteur latin deviné, couvertures annoncées sans vérification |
+| L5 | Migration v2 sur l'iPhone | appareil | ⏳ | J1 |
+
 ## Transcription : durcissement (0.3.1, build 5) — 2026-11-11
 
 Suite à la relecture externe (ChatGPT) de l'architecture : conserver l'implémentation, la durcir avant le premier essai réel.

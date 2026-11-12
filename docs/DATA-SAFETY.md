@@ -22,6 +22,7 @@ Uniquement **sur ton iPhone**, dans l'espace privé de l'app : la base SQLite (l
 | Installation d'une nouvelle version de l'IPA | Données conservées si le bundle ID est le même (*à confirmer : E1*) |
 | Séries (0.2.0) | Retirer une série ne supprime aucun tome, aucune session, aucun audio (testé) ; déplacer un tome ne touche jamais ses sessions (testé) |
 | Couvertures (0.2.0) | Copies privées dans l'app ; les images d'origine (Photos, Fichiers) ne sont jamais modifiées. Non incluses dans l'export audio |
+| Recherche de livres (0.4.0) | Seul le **texte de la recherche** est envoyé à la BnF et à Open Library, sans adresse e-mail ni identifiant. L'ajout ne fait que créer des livres (aucune donnée existante modifiée, testé). Migration v2 : colonnes ajoutées, aucune ligne réécrite (testé) |
 | Copie d'un audio vers Fichiers ou Drive | **Oui, manuellement** : bouton « Exporter l'audio » dans chaque session. Copie vérifiée par SHA-256 avant partage ; l'original n'est jamais touché |
 | Sauvegarde iCloud **de l'iPhone** | Si elle est activée dans les réglages iOS, elle inclut normalement les données des apps, donc celles-ci (non vérifié pour une app installée via AltStore) |
 
