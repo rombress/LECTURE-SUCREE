@@ -63,6 +63,8 @@ interface FakeRecord {
   genre?: string;
   author?: { last: string; first?: string; role?: string };
   altTitle?: string;
+  /** Zone 856 « Première de couverture » (indicateur de couverture). */
+  cover856?: boolean;
 }
 
 const sf = (code: string, v: string) => `<mxc:subfield code="${code}">${v}</mxc:subfield>`;
@@ -86,6 +88,7 @@ export function bnfRecord(r: FakeRecord): string {
     r.series225 ? df('225', sf('a', r.series225.title) + sf('v', r.series225.v)) : '',
     r.series461 ? df('461', sf('t', r.series461.title) + sf('v', r.series461.v)) : '',
     r.altTitle ? df('517', sf('a', r.altTitle)) : '',
+    r.cover856 ? df('856', sf('u', '123456') + sf('b', 'Première de couverture')) + df('856', sf('u', '123457') + sf('b', 'Quatrième de couverture')) : '',
     r.genre ? df('608', sf('a', r.genre)) : '',
     r.author ? df('700', sf('a', r.author.last) + (r.author.first ? sf('b', r.author.first) : '') + sf('4', r.author.role ?? '070')) : '',
   ].join('');

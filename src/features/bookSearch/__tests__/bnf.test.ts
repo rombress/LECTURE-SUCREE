@@ -17,6 +17,7 @@ const LN = bnfRecord({
   genre: 'Romans',
   author: { last: 'Fictif', first: 'Auteur' },
   altTitle: 'Saga fictive en VO',
+  cover856: true,
 });
 
 const MANGA = bnfRecord({
@@ -66,6 +67,8 @@ describe('BnF (SRU, UNIMARC)', () => {
       format: 'light_novel',
       coverUrl: null,
       altTitles: ['Saga fictive en VO'],
+      bnfArk: 'ark:/12148/cbTEST001',
+      bnfCoverFlag: true,
     });
   });
 
@@ -75,6 +78,7 @@ describe('BnF (SRU, UNIMARC)', () => {
     expect(m?.pageCount).toBeNull();
     expect(m?.warnings).toContain('Non paginé');
     expect(m?.volume?.number).toBe(2);
+    expect(m?.bnfCoverFlag).toBe(false);
   });
 
   it('notice d’ensemble sans ISBN ni pagination : écartée', () => {

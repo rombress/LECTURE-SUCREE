@@ -14,11 +14,12 @@ export interface SqlExecutor {
 }
 
 export class MigrationError extends Error {
-  constructor(
-    public readonly version: number,
-    cause: unknown,
-  ) {
+  // Champ explicite (pas de « parameter property ») : ce fichier est aussi
+  // exécuté tel quel par Node dans tests/node/migration.test.mjs.
+  public readonly version: number;
+  constructor(version: number, cause: unknown) {
     super(`Migration ${version} échouée`);
+    this.version = version;
     this.name = 'MigrationError';
     this.cause = cause;
   }

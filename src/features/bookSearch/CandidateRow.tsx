@@ -10,7 +10,7 @@ import { FORMAT_LABELS, languageLabel, SOURCE_LABELS, type BookCandidate } from 
 /** Vignette : couverture connue, sinon miniature BnF de CETTE notice (absente → cadre vide). */
 function thumbUrl(c: BookCandidate): string | null {
   if (c.coverUrl && c.coverSource === 'openlibrary') return c.coverUrl.replace('-L.jpg', '-M.jpg');
-  if (c.bnfArk) return bnfCoverUrl(c.bnfArk, 'thumb');
+  if (c.bnfArk && c.bnfCoverFlag) return bnfCoverUrl(c.bnfArk, 'thumb');
   return c.coverUrl;
 }
 

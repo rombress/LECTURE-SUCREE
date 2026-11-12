@@ -32,6 +32,21 @@ export function bnfCoverUrl(ark: string, size: 'thumb' | 'large'): string {
   const base = `${BNF_COVER}?idArk=${encodeURIComponent(ark).replace(/%3A/g, ':').replace(/%2F/g, '/')}&couverture=1`;
   return size === 'thumb' ? base : `${base}&taille=originale&largeur=900&hauteur=1350`;
 }
+/** Même service, par l'EAN (= ISBN-13) : second essai seulement si la notice signale une couverture. */
+export function bnfCoverUrlByEan(isbn13: string, size: 'thumb' | 'large'): string {
+  const base = `${BNF_COVER}?EAN=${isbn13}&couverture=1`;
+  return size === 'thumb' ? base : `${base}&taille=originale&largeur=900&hauteur=1350`;
+}
+
+/**
+ * Indicateur de couverture dans la notice : zone 856 « Première de
+ * couverture » en UNIMARC (équivalent de la zone 950 Intermarc documentée).
+ * Vérifié le 2026-11-12 sur 18 notices : 8/8 avec indicateur → image ;
+ * 10/10 sans indicateur → HTTP 500.
+ */
+function hasCoverIndicator(fields: Fields): boolean {
+  return (fields.get('856') ?? []).some((f) => /premi[eè]re de couverture/i.test(sub(f, 'b') ?? ''));
+}
 
 /** Échappe une valeur pour une requête CQL entre guillemets. */
 function cqlQuote(s: string): string {
@@ -191,6 +206,7 @@ export function parseBnfRecord(recordXml: string, ark: string | null): BookCandi
     coverUrl: null,
     coverSource: null,
     bnfArk: ark,
+    bnfCoverFlag: hasCoverIndicator(f),
     physical,
     format,
     formatReasons: reasons,

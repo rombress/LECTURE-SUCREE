@@ -67,6 +67,16 @@ describe('doublons', () => {
     expect(findDuplicate(vol(2, { title: 'Arc 1', isbn: null }), keys)).toBeNull();
   });
 
+  it('même titre et même tome mais autre langue : PAS un doublon ; langue inconnue : doublon probable', async () => {
+    const db = createTestDb();
+    await seedExistingData(db);
+    db.raw.prepare("UPDATE volumes SET language = 'fre' WHERE id = 'tome-existant'").run();
+    const keys = await loadExistingKeys(db);
+    expect(findDuplicate(vol(1, { isbn: fakeIsbn(60), language: 'eng' }), keys)).toBeNull();
+    expect(findDuplicate(vol(1, { isbn: fakeIsbn(60), language: 'fre' }), keys)).toEqual({ kind: 'title', volumeId: 'tome-existant' });
+    expect(findDuplicate(vol(1, { isbn: fakeIsbn(60), language: null }), keys)).toEqual({ kind: 'title', volumeId: 'tome-existant' });
+  });
+
   it('hors-série et intégrale : jamais pris pour le tome de même numéro', async () => {
     const db = createTestDb();
     await seedExistingData(db);
@@ -213,7 +223,7 @@ describe('ajout groupé', () => {
   it('échec en base : TOUT est annulé et les couvertures copiées sont supprimées', async () => {
     const db = createTestDb();
     // Un identifiant déjà pris fait échouer le 2e INSERT.
-    await createVolume(db, 'pris', { title: 'Autre livre', author: 'Auteur Fictif' }, NOW);
+    await createVolume(db, 'pris', { title: 'Autre livre', author: 'Auteur Fictif', coverPath: 'covers/pris-existante.jpg' }, NOW);
     let n = 0;
     const covers = fakeCovers();
     await expect(
@@ -227,6 +237,9 @@ describe('ajout groupé', () => {
     expect(db.raw.prepare('SELECT count(*) n FROM series').get()).toEqual({ n: 0 });
     expect(covers.discarded.sort()).toEqual(covers.persisted.sort());
     expect(covers.persisted.length).toBeGreaterThan(0);
+    // La couverture d'un livre EXISTANT n'est jamais supprimée, ni modifiée en base.
+    expect(covers.discarded).not.toContain('covers/pris-existante.jpg');
+    expect((await getVolume(db, 'pris'))?.coverPath).toBe('covers/pris-existante.jpg');
   });
 
   it('auteur obligatoire', async () => {

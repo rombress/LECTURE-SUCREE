@@ -84,6 +84,8 @@ export interface BookCandidate {
   coverSource: BookSource | null;
   /** Notice BnF (ark) : sert à demander la couverture de CETTE notice. */
   bnfArk?: string | null;
+  /** La notice BnF signale une première de couverture (zone 856). */
+  bnfCoverFlag?: boolean;
   /** Support physique tel que décrit (« 21 cm », « Paperback », « eBook »). */
   physical: string | null;
   format: BookFormat;

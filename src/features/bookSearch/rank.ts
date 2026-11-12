@@ -34,6 +34,7 @@ export function mergeByIsbn(lists: readonly BookCandidate[][]): BookCandidate[] 
         coverUrl: a.coverUrl ?? c.coverUrl,
         coverSource: a.coverUrl ? a.coverSource : c.coverSource,
         bnfArk: a.bnfArk ?? c.bnfArk,
+        bnfCoverFlag: a.bnfCoverFlag ?? c.bnfCoverFlag,
         pageCount: a.pageCount ?? c.pageCount,
         publisher: a.publisher ?? c.publisher,
         language: a.language ?? c.language,

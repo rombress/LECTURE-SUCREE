@@ -15,11 +15,13 @@ Consigner chaque résultat dans [TEST-RESULTS.md](TEST-RESULTS.md) : date, versi
 - Installer la 0.4.0 **par-dessus** la 0.3.1, sans désinstaller.
 - La sauvegarde (lot 4) n'existe pas encore. Les livres ajoutés pendant ce test peuvent être supprimés ensuite.
 
+**J0 — AVANT d'installer la 0.4.0 (dans la 0.3.1)** : noter le nombre de livres et de séries affiché en haut de la Bibliothèque. Pour 2 livres qui ont des sessions : noter le nombre de sessions, puis ouvrir une session (réécouter quelques secondes, vérifier le texte). Faire une capture de la Bibliothèque.
+
 Utiliser tes trois séries de test. Pour chaque test, noter **OK / KO** et le message affiché.
 
 | # | Test | Résultat attendu |
 |---|---|---|
-| J1 | Lancer l'app, ouvrir la Bibliothèque puis Réglages → Diagnostic | Livres, séries, couvertures, sessions, audios et transcriptions **tous présents**. Diagnostic : « schéma v2/2 » |
+| J1 | **Immédiatement après l'installation** : lancer l'app, puis Réglages → Diagnostic | **SQLite + migrations** : « schéma v3/3 », « migrations appliquées à ce lancement : 2 ». **Intégrité des données** : « intégrité : ok · clés étrangères : ok », mêmes nombres de livres et séries qu'en J0, **fichiers manquants : 0**. Bibliothèque : même nombre de livres et séries qu'en J0, couvertures présentes. Les 2 livres de J0 : mêmes sessions, audio qui se réécoute, texte identique. **Au moindre écart : arrêter le test et me l'envoyer (capture), ne rien supprimer** |
 | J2 | ＋ → **Rechercher un livre** → la série n° 1, titre français | Éditions **françaises en tête**, light novels, numéros dans l'ordre. État des sources affiché (« BnF : N retenus · Open Library : N retenus »). Mangas masqués, avec leur nombre |
 | J3 | Toucher le chip de format (« Tous les formats ») | Les mangas et autres formats (coloriages…) apparaissent, marqués « Manga » ou « Autre format » |
 | J4 | Toucher une édition **française** de la série 2, puis de la série 1 | Fiche « Édition trouvée » : langue, éditeur, tome, source ; pages et ISBN remplis. Série 2 : **couverture BnF** affichée, avec « Couverture de cette édition : Bibliothèque nationale de France ». Série 1 : pas de couverture, message (limite connue) |

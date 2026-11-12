@@ -18,6 +18,7 @@ export interface ExistingVolumeKey {
   sortIndex: number | null;
   seriesId: string | null;
   isbn: string | null;
+  language: string | null;
 }
 
 export async function loadExistingKeys(db: DbLike): Promise<ExistingVolumeKey[]> {
@@ -28,7 +29,8 @@ export async function loadExistingKeys(db: DbLike): Promise<ExistingVolumeKey[]>
     sort_index: number | null;
     series_id: string | null;
     isbn: string | null;
-  }>('SELECT id, title, volume_label, sort_index, series_id, isbn FROM volumes', []);
+    language: string | null;
+  }>('SELECT id, title, volume_label, sort_index, series_id, isbn, language FROM volumes', []);
   return rows.map((r) => ({
     id: r.id,
     title: r.title,
@@ -36,13 +38,14 @@ export async function loadExistingKeys(db: DbLike): Promise<ExistingVolumeKey[]>
     sortIndex: r.sort_index,
     seriesId: r.series_id,
     isbn: r.isbn,
+    language: r.language,
   }));
 }
 
 export type DuplicateMatch = { kind: 'isbn' | 'title'; volumeId: string } | null;
 
 export function findDuplicate(
-  c: Pick<BookCandidate, 'isbn' | 'title' | 'volume'>,
+  c: Pick<BookCandidate, 'isbn' | 'title' | 'volume' | 'language'>,
   existing: readonly ExistingVolumeKey[],
   targetSeriesId: string | null = null,
 ): DuplicateMatch {
@@ -55,6 +58,8 @@ export function findDuplicate(
   const hit = existing.find((e) => {
     if (normalizeForMatch(e.title) !== title) return false;
     if (targetSeriesId && e.seriesId && e.seriesId !== targetSeriesId) return false;
+    // Édition française et édition anglaise du même tome : PAS des doublons.
+    if (c.language && e.language && c.language !== e.language) return false;
     // Hors-série et intégrales : « Alter 1 » ou « 1-12 » ne sont pas le tome 1.
     // On compare alors le libellé exact.
     const kind = c.volume?.kind;

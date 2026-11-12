@@ -43,7 +43,10 @@ function fakeHttp(route: Route): HttpClient & { calls: string[] } {
     },
     async probeImage(url, opts) {
       calls.push(`${opts?.method ?? 'HEAD'} ${url}`);
-      if (url.includes('openapi.bnf.fr')) return url.includes('cbAVEC') ? 'found' : url.includes('cbRESEAU') ? 'unreachable' : 'missing';
+      if (url.includes('openapi.bnf.fr')) {
+        if (url.includes(`EAN=${fakeIsbn(7)}`)) return 'found';
+        return url.includes('cbAVEC') ? 'found' : url.includes('cbRESEAU') ? 'unreachable' : 'missing';
+      }
       return url.includes(fakeIsbn(1)) ? 'found' : 'missing';
     },
   };
@@ -113,19 +116,38 @@ describe('recherche combinée', () => {
 });
 
 describe('couvertures BnF (service Couvertures, par ark)', () => {
-  it('couverture trouvée sur la notice : prioritaire, grande taille, source BnF', async () => {
+  const flagged = (ark: string, over: Parameters<typeof candidate>[0] = {}) => candidate({ bnfArk: ark, bnfCoverFlag: true, ...over });
+
+  it('notice qui signale une couverture : prioritaire, grande taille, source BnF, une seule requête', async () => {
     const http = fakeHttp(ok);
-    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbAVEC', isbn: fakeIsbn(1) }), http);
+    const e = await enrichCandidate(flagged('ark:/12148/cbAVEC', { isbn: fakeIsbn(1) }), http);
     expect(e.coverSource).toBe('bnf');
     expect(e.coverUrl).toBe('https://openapi.bnf.fr/couverture/image/image/recupererImage?idArk=ark:/12148/cbAVEC&couverture=1&taille=originale&largeur=900&hauteur=1350');
     // Test d'existence en GET (la BnF refuse HEAD) ; Open Library non sollicité.
     expect(http.calls).toEqual(['GET https://openapi.bnf.fr/couverture/image/image/recupererImage?idArk=ark:/12148/cbAVEC&couverture=1']);
   });
 
-  it('HTTP 500 (notice sans couverture) : pas une panne, repli sur Open Library avec le MÊME ISBN', async () => {
-    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbSANS', isbn: fakeIsbn(1) }), fakeHttp(ok));
+  it('notice SANS indicateur de couverture : aucune requête BnF, repli Open Library avec le MÊME ISBN', async () => {
+    const http = fakeHttp(ok);
+    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbAVEC', bnfCoverFlag: false, isbn: fakeIsbn(1) }), http);
+    expect(http.calls.some((c) => c.includes('openapi.bnf.fr'))).toBe(false);
     expect(e).toMatchObject({ coverSource: 'openlibrary', coverUrl: expect.stringContaining(fakeIsbn(1)) });
-    expect(e.warnings.join(' ')).not.toMatch(/réseau/);
+  });
+
+  it('couverture signalée mais HTTP 500 par l’ark : PAS une absence, un seul essai par l’EAN', async () => {
+    const http = fakeHttp(ok);
+    const e = await enrichCandidate(flagged('ark:/12148/cbSANS', { isbn: fakeIsbn(7) }), http);
+    expect(http.calls.filter((c) => c.includes('openapi.bnf.fr'))).toEqual([
+      'GET https://openapi.bnf.fr/couverture/image/image/recupererImage?idArk=ark:/12148/cbSANS&couverture=1',
+      `GET https://openapi.bnf.fr/couverture/image/image/recupererImage?EAN=${fakeIsbn(7)}&couverture=1`,
+    ]);
+    expect(e).toMatchObject({ coverSource: 'bnf', coverUrl: expect.stringContaining(`EAN=${fakeIsbn(7)}`) });
+  });
+
+  it('signalée mais introuvable par l’ark ET l’EAN : avertissement « erreur du service », repli Open Library', async () => {
+    const e = await enrichCandidate(flagged('ark:/12148/cbSANS', { isbn: fakeIsbn(1) }), fakeHttp(ok));
+    expect(e.warnings.join(' ')).toMatch(/signalée par la BnF mais non récupérée/);
+    expect(e).toMatchObject({ coverSource: 'openlibrary', coverUrl: expect.stringContaining(fakeIsbn(1)) });
   });
 
   it('aucune couverture nulle part : signalé, rien d’emprunté à une autre édition', async () => {
@@ -135,13 +157,15 @@ describe('couvertures BnF (service Couvertures, par ark)', () => {
     expect(e.warnings).toContain('Pas de couverture trouvée pour cette édition');
   });
 
-  it('BnF injoignable : avertissement « non vérifiée (réseau) »', async () => {
-    const e = await enrichCandidate(candidate({ bnfArk: 'ark:/12148/cbRESEAU', isbn: fakeIsbn(4) }), fakeHttp(ok));
+  it('BnF injoignable : avertissement « non vérifiée (réseau) », pas de second essai', async () => {
+    const http = fakeHttp(ok);
+    const e = await enrichCandidate(flagged('ark:/12148/cbRESEAU', { isbn: fakeIsbn(4) }), http);
     expect(e.warnings).toContain('Couverture BnF non vérifiée (réseau)');
+    expect(http.calls.filter((c) => c.includes('EAN='))).toEqual([]);
   });
 
   it('notice déjà illustrée par Open Library (même ISBN) : la couverture BnF reste prioritaire si elle existe', async () => {
-    const c = candidate({ bnfArk: 'ark:/12148/cbAVEC', coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg', coverSource: 'openlibrary' });
+    const c = flagged('ark:/12148/cbAVEC', { coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg', coverSource: 'openlibrary' });
     expect((await enrichCandidate(c, fakeHttp(ok))).coverSource).toBe('bnf');
     const sans = candidate({ bnfArk: 'ark:/12148/cbSANS', coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg', coverSource: 'openlibrary' });
     expect(await enrichCandidate(sans, fakeHttp(ok))).toMatchObject({ coverSource: 'openlibrary', coverUrl: 'https://covers.openlibrary.org/b/id/1-L.jpg' });
@@ -219,6 +243,10 @@ describe('client HTTP', () => {
     const img = { ok: true, status: 200, headers: { get: () => 'image/jpeg' }, text: async () => '' };
     expect(await createHttpClient(async () => img).probeImage('u', { method: 'GET' })).toBe('found');
     expect(await createHttpClient(async () => res(500)).probeImage('u')).toBe('missing');
+    expect(await createHttpClient(async () => res(404)).probeImage('u')).toBe('missing');
+    // Autres erreurs : service indisponible, PAS « pas de couverture ».
+    expect(await createHttpClient(async () => res(503)).probeImage('u')).toBe('unreachable');
+    expect(await createHttpClient(async () => res(429)).probeImage('u')).toBe('unreachable');
     expect(await createHttpClient(async () => ({ ...img, headers: { get: () => 'text/html' } })).probeImage('u')).toBe('missing');
     expect(
       await createHttpClient(async () => {
@@ -228,7 +256,7 @@ describe('client HTTP', () => {
   });
 
   it('messages affichables', () => {
-    expect(describeHttpError(new HttpError('offline'))).toBe('Pas de connexion');
+    expect(describeHttpError(new HttpError('offline'))).toBe('Injoignable pour le moment');
     expect(describeHttpError(new Error('x'))).toBe('Réponse illisible');
   });
 });

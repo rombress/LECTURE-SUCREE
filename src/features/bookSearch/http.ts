@@ -53,7 +53,10 @@ export function createHttpClient(fetchImpl: FetchLike): HttpClient {
       try {
         const res = await fetchImpl(url, { method: opts.method ?? 'HEAD', headers: { 'User-Agent': USER_AGENT }, signal: controller.signal });
         const type = res.headers?.get('content-type') ?? '';
-        return res.ok && (type === '' || type.startsWith('image/')) ? 'found' : 'missing';
+        if (res.ok) return type === '' || type.startsWith('image/') ? 'found' : 'missing';
+        // 404 et 500 (BnF : « pas de couverture », documenté) = absente ;
+        // autre erreur (429, 502, 503…) = service indisponible, pas une absence.
+        return res.status === 404 || res.status === 500 ? 'missing' : 'unreachable';
       } catch {
         if (opts.signal?.aborted) throw new HttpError('cancelled');
         return 'unreachable';
@@ -96,7 +99,8 @@ export function describeHttpError(e: unknown): string {
   if (!(e instanceof HttpError)) return 'Réponse illisible';
   switch (e.kind) {
     case 'offline':
-      return 'Pas de connexion';
+      // Par source : « Pas de connexion » n'est affiché que si TOUTES échouent (écran de recherche).
+      return 'Injoignable pour le moment';
     case 'timeout':
       return 'Délai dépassé';
     case 'rate_limited':

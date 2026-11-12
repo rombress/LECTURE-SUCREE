@@ -14,7 +14,7 @@ import { Platform } from 'react-native';
 
 import { getDatabase, getLastMigrationReport } from '@/data/db/database';
 import { LATEST_SCHEMA_VERSION } from '@/data/db/migrations';
-import { APP_DIR } from '@/data/files/paths';
+import { APP_DIR, isSafeRelativePath } from '@/data/files/paths';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail' | 'info';
 export interface CheckResult {
@@ -58,6 +58,40 @@ export async function runDiagnostics(): Promise<CheckResult[]> {
       return {
         status: okVersion && okFk ? 'ok' : 'fail',
         detail: `SQLite ${v?.v ?? '?'} · schéma v${uv?.user_version ?? '?'}/${LATEST_SCHEMA_VERSION} · clés étrangères ${okFk ? 'actives' : 'INACTIVES'} · journal ${jm?.journal_mode ?? '?'} · migrations appliquées à ce lancement : ${report?.applied.length ?? 0}`,
+      };
+    }),
+  );
+
+  results.push(
+    await safe('data', 'Intégrité des données (après mise à jour)', async () => {
+      // Lecture seule. Uniquement des NOMBRES : aucun titre ni texte affiché.
+      const db = await getDatabase();
+      const integrity = await db.getAllAsync<{ integrity_check: string }>('PRAGMA integrity_check', []);
+      const fkErrors = await db.getAllAsync<Record<string, unknown>>('PRAGMA foreign_key_check', []);
+      const n = async (sql: string) => (await db.getFirstAsync<{ n: number }>(sql, []))?.n ?? 0;
+      const counts = {
+        series: await n('SELECT count(*) AS n FROM series'),
+        volumes: await n('SELECT count(*) AS n FROM volumes'),
+        sessions: await n('SELECT count(*) AS n FROM reading_sessions'),
+        audios: await n('SELECT count(*) AS n FROM reading_sessions WHERE audio_path IS NOT NULL'),
+        transcripts: await n("SELECT count(*) AS n FROM reading_sessions WHERE transcript_text <> ''"),
+        covers: await n('SELECT (SELECT count(*) FROM volumes WHERE cover_path IS NOT NULL) + (SELECT count(*) FROM series WHERE cover_path IS NOT NULL) AS n'),
+      };
+      // Fichiers référencés en base mais absents du disque.
+      const paths = await db.getAllAsync<{ p: string }>(
+        `SELECT audio_path AS p FROM reading_sessions WHERE audio_path IS NOT NULL
+         UNION ALL SELECT cover_path FROM volumes WHERE cover_path IS NOT NULL
+         UNION ALL SELECT cover_path FROM series WHERE cover_path IS NOT NULL`,
+        [],
+      );
+      const missing = paths.filter(({ p }) => !isSafeRelativePath(p) || !new File(Paths.document, APP_DIR, ...p.split('/')).exists).length;
+      const okIntegrity = integrity.length === 1 && integrity[0]?.integrity_check === 'ok';
+      return {
+        status: okIntegrity && fkErrors.length === 0 && missing === 0 ? 'ok' : 'fail',
+        detail:
+          `intégrité : ${okIntegrity ? 'ok' : 'ERREUR'} · clés étrangères : ${fkErrors.length === 0 ? 'ok' : `${fkErrors.length} ERREUR(S)`} · ` +
+          `${counts.series} séries · ${counts.volumes} livres · ${counts.sessions} sessions · ${counts.audios} audios · ` +
+          `${counts.transcripts} transcriptions · ${counts.covers} couvertures · fichiers manquants : ${missing}`,
       };
     }),
   );

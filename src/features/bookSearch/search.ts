@@ -3,7 +3,7 @@
  * Une source en panne n'empêche pas d'afficher les résultats de l'autre ;
  * l'état de chaque source est rendu pour être affiché.
  */
-import { bnfCoverUrl, buildBnfUrl, parseBnfResponse } from './bnf';
+import { bnfCoverUrl, bnfCoverUrlByEan, buildBnfUrl, parseBnfResponse } from './bnf';
 import { describeHttpError, HttpError, type HttpClient } from './http';
 import {
   applyEdition,
@@ -30,6 +30,7 @@ export interface SearchResult {
 }
 
 const BNF_MAX = 100;
+export const RETRY_DELAY_MS = 1000;
 
 async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   try {
@@ -38,6 +39,9 @@ async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise
     // Une seule nouvelle tentative, et seulement pour un échec réseau
     // passager (observé : résolution DNS intermittente de la BnF).
     if (signal?.aborted || !(e instanceof HttpError) || (e.kind !== 'offline' && e.kind !== 'timeout')) throw e;
+    // Courte pause : constaté, la résolution DNS de la BnF échoue parfois deux fois de suite.
+    await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    if (signal?.aborted) throw new HttpError('cancelled');
     return fn();
   }
 }
@@ -109,10 +113,22 @@ export async function enrichCandidate(c: BookCandidate, http: HttpClient, signal
   // 1. Couverture BnF de CETTE notice (prioritaire pour les éditions françaises).
   //    La miniature (≈ 5 Ko) sert de test : la BnF refuse HEAD (405) et répond
   //    500 quand la notice n'a pas de couverture (documenté) → « missing ».
-  if (c.bnfArk) {
+  //    Seulement si la notice SIGNALE une couverture (zone 856) : sinon le
+  //    service répond 500 à coup sûr (vérifié), la requête est inutile.
+  if (c.bnfArk && c.bnfCoverFlag) {
     const probe = await http.probeImage(bnfCoverUrl(c.bnfArk, 'thumb'), { method: 'GET', signal });
     if (probe === 'found') return { ...c, coverUrl: bnfCoverUrl(c.bnfArk, 'large'), coverSource: 'bnf', enriched: true };
-    if (probe === 'unreachable') warnings.push('Couverture BnF non vérifiée (réseau)');
+    if (probe === 'missing' && c.isbn) {
+      // Couverture signalée mais 500 par l'ark : ce n'est PAS une absence. Un seul
+      // second essai, par l'EAN de la même édition.
+      const byEan = await http.probeImage(bnfCoverUrlByEan(c.isbn, 'thumb'), { method: 'GET', signal });
+      if (byEan === 'found') return { ...c, coverUrl: bnfCoverUrlByEan(c.isbn, 'large'), coverSource: 'bnf', enriched: true };
+    }
+    warnings.push(
+      probe === 'unreachable'
+        ? 'Couverture BnF non vérifiée (réseau)'
+        : 'Couverture signalée par la BnF mais non récupérée (erreur du service) : réessayez plus tard',
+    );
   }
   // 2. Sinon, couverture du MÊME ISBN sur Open Library.
   if (!c.coverUrl && c.isbn) {

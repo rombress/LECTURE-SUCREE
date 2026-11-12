@@ -45,7 +45,12 @@ Identification envoyée aux catalogues : `LectureSucree/0.4 (application de lect
 6. **Ordre** : français, puis anglais, puis autres langues. Les light novels passent avant les formats « non précisés ». Les mangas et autres formats sont **masqués par défaut** : un bouton les affiche, avec leur nombre.
 7. **Avant l'ajout**, l'édition exacte est relue :
    - **Open Library** : l'édition affichée est retrouvée par son ISBN. Si c'est un ebook, elle est remplacée par l'imprimée **de la même langue connue**, et l'écran le signale (« ISBN différent »). Si l'ISBN affiché est introuvable ou la langue inconnue, aucune autre édition n'est choisie. Pages, ISBN, éditeur, couverture et série viennent **tous** de l'édition retenue.
-   - **BnF** : on demande d'abord la couverture **de cette notice** au service Couvertures de la BnF, par son ark. La miniature (environ 5 Ko) sert de test : 200 = trouvée, 500 = absente, erreur réseau = « non vérifiée ». En cas d'absence, on essaie la couverture du **même ISBN** sur Open Library.
+   - **BnF** : la notice indique si une couverture existe (zone **856 « Première de couverture »**, l'équivalent UNIMARC de la zone 950 Intermarc documentée). Vérifié sur 18 notices : 8 sur 8 avec l'indicateur ont une image, 10 sur 10 sans l'indicateur répondent 500.
+     - **Sans indicateur** : aucune requête à la BnF (inutile).
+     - **Avec indicateur** : la couverture **de cette notice** est demandée par son ark ; la miniature (environ 5 Ko) sert de test.
+     - **Indicateur présent mais réponse 500** : ce n'est **pas** une absence. Un seul second essai, par l'EAN (même ISBN). Si le second essai échoue aussi : avertissement « signalée mais non récupérée ».
+     - **Autres erreurs** (429, 502, 503…) : « service indisponible », jamais « pas de couverture ».
+     - Ensuite seulement, repli sur la couverture du **même ISBN** chez Open Library.
 8. **Couverture** : elle est téléchargée en HTTPS (le code natif refuse toute réponse hors 2xx). Les fichiers de moins de 2 Ko sont refusés. L'image est normalisée comme une photo : JPEG de 900 px au plus. Elle n'est copiée dans le stockage privé qu'au moment de l'ajout.
 
 ### Format (light novel, manga, autre)
