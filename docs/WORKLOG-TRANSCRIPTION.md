@@ -66,3 +66,7 @@
 - **Prêt** : code de la 0.3.0 (build 4) **commité en local**, non poussé. Une nouvelle IPA peut être compilée dès que le push est autorisé.
 - **Rien n'a été testé sur iPhone.** Le protocole H de [TEST-PROTOCOL-MVP.md](TEST-PROTOCOL-MVP.md) dira si la transcription fonctionne réellement.
 - **Message pour ChatGPT** prêt : [reviews/2026-11-11-transcription-en-direct.md](reviews/2026-11-11-transcription-en-direct.md).
+
+## Suite (2026-11-12)
+
+- La 0.3.1 (build 5) a été **installée et testée sur l’iPhone** : I1 à I6 tous OK, voir [TEST-RESULTS.md](TEST-RESULTS.md).

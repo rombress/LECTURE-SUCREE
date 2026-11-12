@@ -35,10 +35,23 @@ Suite à la relecture externe (ChatGPT) de l'architecture : conserver l'impléme
 | T1 | `npm run verify` | local | ✅ | Confidentialité, TypeScript, ESLint (0 avertissement), **110 tests Jest + 23 tests Node** |
 | T2 | Mutations (4 défauts réintroduits volontairement) | local | ✅ | Chacun fait échouer au moins un test : isolation des gestionnaires, anti-boucle des interruptions, écho final tardif, intermédiaires cumulés |
 | T3 | Correctif Swift d'expo-speech-recognition appliqué par `postinstall` | local | ✅ | Appliqué une fois, idempotent, échec explicite si le code du module change (3 tests Node) |
-| T4 | Compilation du Swift corrigé | CI | ⏳ | Impossible sous Windows : vérifiée par le workflow `ios-ipa` |
+| T4 | Compilation du Swift corrigé | CI | ✅ | Déduit : l'IPA 0.3.1 a été compilée par `ios-ipa` puis installée sur l'iPhone (numéro de run non consigné) |
 | T5 | Bundle iOS (`expo export`) | local | ✅ | 3 Mo |
 | T6 | `expo-doctor` | local | ⚠️ | 19/20 : des versions correctives d'Expo (ex. `expo` 58.0.23 → 58.0.24) sont parues le 2026-11-11. **Non mises à jour volontairement** avant l'essai sur iPhone. Sans rapport avec le code |
-| T7 | Protocole court (section I) | appareil | ⏳ | |
+| T7 | Protocole court (section I) | appareil | ✅ (global) | 2026-11-12 : 0.3.1 installée et testée sur l'iPhone, I1 à I6 **tous OK** (voir ci-dessous) |
+
+### Protocole I sur iPhone (0.3.1) — 2026-11-12
+
+Rapport : **tous les tests OK** (déclaré par toi le 2026-11-12, sans message particulier rapporté).
+
+| # | Statut | Message affiché / remarque |
+|---|---|---|
+| I1 | ✅ OK | |
+| I2 | ✅ OK | |
+| I3 | ✅ OK | |
+| I4 | ✅ OK | |
+| I5 | ✅ OK | |
+| I6 | ✅ OK | |
 
 ## Lot Transcription (0.3.0, build 4) — 2026-11-11 (travail autonome)
 
